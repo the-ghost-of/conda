@@ -167,10 +167,9 @@ class memoized:  # pragma: no cover
         with self.lock:
             if key in self.cache:
                 return self.cache[key]
-            else:
-                value = self.func(*args, **kw)
-                self.cache[key] = value
-                return value
+            value = self.func(*args, **kw)
+            self.cache[key] = value
+            return value
 
 
 from .gateways.disk.delete import rm_rf as _rm_rf
@@ -285,12 +284,12 @@ def _symlink_conda_hlp(prefix, root_dir, where, symlink_fn):  # pragma: no cover
             if not os.path.lexists(prefix_file):
                 symlink_fn(root_file, prefix_file)
         except OSError as e:
-            if (os.path.lexists(prefix_file) and (e.errno in (
-                    errno.EPERM, errno.EACCES, errno.EROFS, errno.EEXIST
-            ))):
-                # Cannot symlink root_file to prefix_file. Ignoring since link already exists
-                pass
-            else:
+            if not os.path.lexists(prefix_file) or e.errno not in (
+                errno.EPERM,
+                errno.EACCES,
+                errno.EROFS,
+                errno.EEXIST,
+            ):
                 raise
 
 
@@ -308,14 +307,14 @@ if on_win:  # pragma: no cover
         try:
             os.makedirs(os.path.dirname(dst))
         except OSError as exc:  # Python >2.5
-            if exc.errno == errno.EEXIST and os.path.isdir(os.path.dirname(dst)):
-                pass
-            else:
+            if exc.errno != errno.EEXIST or not os.path.isdir(
+                os.path.dirname(dst)
+            ):
                 raise
 
         # bat file redirect
-        if not os.path.isfile(dst + '.bat'):
-            with open(dst + '.bat', 'w') as f:
+        if not os.path.isfile(f'{dst}.bat'):
+            with open(f'{dst}.bat', 'w') as f:
                 f.write('@echo off\ncall "%s" %%*\n' % src)
 
         # TODO: probably need one here for powershell at some point
@@ -330,7 +329,7 @@ if on_win:  # pragma: no cover
             with open(dst, "w") as f:
                 f.write("#!/usr/bin/env bash \n")
                 if src.endswith("conda"):
-                    f.write('%s "$@"' % shells[shell]['path_to'](src+".exe"))
+                    f.write('%s "$@"' % shells[shell]['path_to'](f"{src}.exe"))
                 else:
                     f.write('source %s "$@"' % shells[shell]['path_to'](src))
             # Make the new file executable

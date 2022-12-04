@@ -45,9 +45,8 @@ def pip_subprocess(args, prefix, cwd):
 
 def get_pip_installed_packages(stdout):
     """Return the list of pip packages installed based on the command output"""
-    m = re.search(r"Successfully installed\ (.*)", stdout)
-    if m:
-        return m.group(1).strip().split()
+    if m := re.search(r"Successfully installed\ (.*)", stdout):
+        return m[1].strip().split()
     else:
         return None
 
@@ -58,15 +57,15 @@ def get_pip_version(prefix):
     if not pip_version:
         raise CondaEnvException("Failed to find pip version string in output")
     else:
-        pip_version = pip_version.group(1)
+        pip_version = pip_version[1]
     return pip_version
 
 
 class PipPackage(dict):
     def __str__(self):
         if "path" in self:
-            return "{} ({})-{}-<pip>".format(self["name"], self["path"], self["version"])
-        return "{}-{}-<pip>".format(self["name"], self["version"])
+            return f'{self["name"]} ({self["path"]})-{self["version"]}-<pip>'
+        return f'{self["name"]}-{self["version"]}-<pip>'
 
 
 def installed(prefix, output=True):
@@ -140,10 +139,11 @@ def installed(prefix, output=True):
                 version, path = version.split(', ')
                 # We do this because the code below uses rsplit('-', 2)
                 version = version.replace('-', ' ')
-                kwargs.update({
+                kwargs |= {
                     'path': path,
                     'version': version,
-                })
+                }
+
             yield PipPackage(**kwargs)
 
 

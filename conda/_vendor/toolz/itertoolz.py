@@ -91,10 +91,7 @@ def groupby(key, seq):
     d = collections.defaultdict(lambda: [].append)
     for item in seq:
         d[key(item)](item)
-    rv = {}
-    for k, v in iteritems(d):
-        rv[k] = v.__self__
-    return rv
+    return {k: v.__self__ for k, v in iteritems(d)}
 
 
 def merge_sorted(*seqs, **kwargs):
@@ -113,12 +110,12 @@ def merge_sorted(*seqs, **kwargs):
     >>> list(merge_sorted([2, 3], [1, 3], key=lambda x: x // 3))
     [2, 1, 3, 3]
     """
-    if len(seqs) == 0:
+    if not seqs:
         return iter([])
     elif len(seqs) == 1:
         return iter(seqs[0])
 
-    key = kwargs.get('key', None)
+    key = kwargs.get('key')
     if key is None:
         return _merge_sorted_binary(seqs)
     else:
@@ -128,21 +125,13 @@ def merge_sorted(*seqs, **kwargs):
 def _merge_sorted_binary(seqs):
     mid = len(seqs) // 2
     L1 = seqs[:mid]
-    if len(L1) == 1:
-        seq1 = iter(L1[0])
-    else:
-        seq1 = _merge_sorted_binary(L1)
+    seq1 = iter(L1[0]) if len(L1) == 1 else _merge_sorted_binary(L1)
     L2 = seqs[mid:]
-    if len(L2) == 1:
-        seq2 = iter(L2[0])
-    else:
-        seq2 = _merge_sorted_binary(L2)
-
+    seq2 = iter(L2[0]) if len(L2) == 1 else _merge_sorted_binary(L2)
     try:
         val2 = next(seq2)
     except StopIteration:
-        for val1 in seq1:
-            yield val1
+        yield from seq1
         return
 
     for val1 in seq1:
@@ -160,32 +149,22 @@ def _merge_sorted_binary(seqs):
             yield val1
     else:
         yield val2
-        for val2 in seq2:
-            yield val2
+        yield from seq2
         return
     yield val1
-    for val1 in seq1:
-        yield val1
+    yield from seq1
 
 
 def _merge_sorted_binary_key(seqs, key):
     mid = len(seqs) // 2
     L1 = seqs[:mid]
-    if len(L1) == 1:
-        seq1 = iter(L1[0])
-    else:
-        seq1 = _merge_sorted_binary_key(L1, key)
+    seq1 = iter(L1[0]) if len(L1) == 1 else _merge_sorted_binary_key(L1, key)
     L2 = seqs[mid:]
-    if len(L2) == 1:
-        seq2 = iter(L2[0])
-    else:
-        seq2 = _merge_sorted_binary_key(L2, key)
-
+    seq2 = iter(L2[0]) if len(L2) == 1 else _merge_sorted_binary_key(L2, key)
     try:
         val2 = next(seq2)
     except StopIteration:
-        for val1 in seq1:
-            yield val1
+        yield from seq1
         return
     key2 = key(val2)
 
@@ -206,12 +185,10 @@ def _merge_sorted_binary_key(seqs, key):
             yield val1
     else:
         yield val2
-        for val2 in seq2:
-            yield val2
+        yield from seq2
         return
     yield val1
-    for val1 in seq1:
-        yield val1
+    yield from seq1
 
 
 def interleave(seqs):
@@ -296,16 +273,15 @@ def isdistinct(seq):
     >>> isdistinct("World")
     True
     """
-    if iter(seq) is seq:
-        seen = set()
-        seen_add = seen.add
-        for item in seq:
-            if item in seen:
-                return False
-            seen_add(item)
-        return True
-    else:
+    if iter(seq) is not seq:
         return len(seq) == len(set(seq))
+    seen = set()
+    seen_add = seen.add
+    for item in seq:
+        if item in seen:
+            return False
+        seen_add(item)
+    return True
 
 
 def take(n, seq):
@@ -445,15 +421,14 @@ def get(ind, seq, default=no_default):
         return seq[ind]
     except TypeError:  # `ind` may be a list
         if isinstance(ind, list):
-            if default == no_default:
-                if len(ind) > 1:
-                    return operator.itemgetter(*ind)(seq)
-                elif ind:
-                    return (seq[ind[0]],)
-                else:
-                    return ()
-            else:
+            if default != no_default:
                 return tuple(_get(i, seq, default) for i in ind)
+            if len(ind) > 1:
+                return operator.itemgetter(*ind)(seq)
+            elif ind:
+                return (seq[ind[0]],)
+            else:
+                return ()
         elif default != no_default:
             return default
         else:
@@ -690,10 +665,7 @@ def partition(n, seq, pad=no_pad):
         partition_all
     """
     args = [iter(seq)] * n
-    if pad is no_pad:
-        return zip(*args)
-    else:
-        return zip_longest(*args, fillvalue=pad)
+    return zip(*args) if pad is no_pad else zip_longest(*args, fillvalue=pad)
 
 
 def partition_all(n, seq):
@@ -735,9 +707,7 @@ def count(seq):
     See also:
         len
     """
-    if hasattr(seq, '__len__'):
-        return len(seq)
-    return sum(1 for i in seq)
+    return len(seq) if hasattr(seq, '__len__') else sum(1 for _ in seq)
 
 
 def pluck(ind, seqs, default=no_default):
@@ -773,16 +743,15 @@ def pluck(ind, seqs, default=no_default):
 
 
 def getter(index):
-    if isinstance(index, list):
-        if len(index) == 1:
-            index = index[0]
-            return lambda x: (x[index],)
-        elif index:
-            return operator.itemgetter(*index)
-        else:
-            return lambda x: ()
-    else:
+    if not isinstance(index, list):
         return operator.itemgetter(index)
+    if len(index) == 1:
+        index = index[0]
+        return lambda x: (x[index],)
+    elif index:
+        return operator.itemgetter(*index)
+    else:
+        return lambda x: ()
 
 
 def join(leftkey, leftseq, rightkey, rightseq,
@@ -894,7 +863,7 @@ def diff(*seqs, **kwargs):
         iters = zip(*seqs)
     else:
         iters = zip_longest(*seqs, fillvalue=default)
-    key = kwargs.get('key', None)
+    key = kwargs.get('key')
     if key is None:
         for items in iters:
             if items.count(items[0]) != N:

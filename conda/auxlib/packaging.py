@@ -91,11 +91,9 @@ def call(command, path=None, raise_on_error=True):
     stdout, stderr = p.communicate()
     rc = p.returncode
     log.debug(
-        "{} $  {}\n"
-        "  stdout: {}\n"
-        "  stderr: {}\n"
-        "  rc: {}".format(path, command, stdout, stderr, rc)
+        f"{path} $  {command}\n  stdout: {stdout}\n  stderr: {stderr}\n  rc: {rc}"
     )
+
     if raise_on_error and rc != 0:
         raise CalledProcessError(rc, command, f"stdout: {stdout}\nstderr: {stderr}")
     return Response(stdout.decode('utf-8'), stderr.decode('utf-8'), int(rc))
@@ -124,7 +122,7 @@ def _git_describe_tags(path):
     elif response.rc == 128 and "not a git repository" in response.stderr.lower():
         return None
     elif response.rc == 127:
-        log.error("git not found on path: PATH={}".format(getenv("PATH", None)))
+        log.error(f'git not found on path: PATH={getenv("PATH", None)}')
         raise CalledProcessError(response.rc, response.stderr)
     else:
         raise CalledProcessError(response.rc, response.stderr)

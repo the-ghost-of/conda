@@ -40,8 +40,7 @@ class PrefixGraph:
                 if any(m.match(rec) for m in parent_match_specs)
             }
             graph[node] = parent_nodes
-            matching_specs = IndexedSet(s for s in specs if s.match(node))
-            if matching_specs:
+            if matching_specs := IndexedSet(s for s in specs if s.match(node)):
                 spec_matches[node] = matching_specs
 
         self._toposort()
@@ -129,12 +128,8 @@ class PrefixGraph:
                 removed_nodes.add(node)
                 self._remove_node(node)
 
-        removed_nodes = tuple(filter(
-            lambda node: node in removed_nodes,
-            original_order
-        ))
         self._toposort()
-        return removed_nodes
+        return tuple(filter(lambda node: node in removed_nodes, original_order))
 
     def get_node_by_name(self, name):
         return next(rec for rec in self.graph if rec.name == name)
@@ -181,7 +176,7 @@ class PrefixGraph:
         """ Removes this node and all edges referencing it. """
         graph = self.graph
         if node not in graph:
-            raise KeyError('node %s does not exist' % node)
+            raise KeyError(f'node {node} does not exist')
         graph.pop(node)
         self.spec_matches.pop(node, None)
 
@@ -232,18 +227,20 @@ class PrefixGraph:
         # disconnected nodes go first
         nodes_that_are_parents = {node for parents in graph.values() for node in parents}
         nodes_without_parents = (node for node in graph if not graph[node])
-        disconnected_nodes = sorted(
-            (node for node in nodes_without_parents if node not in nodes_that_are_parents),
-            key=lambda x: x.name
+        yield from sorted(
+            (
+                node
+                for node in nodes_without_parents
+                if node not in nodes_that_are_parents
+            ),
+            key=lambda x: x.name,
         )
-        yield from disconnected_nodes
 
         t = cls._toposort_raise_on_cycles(graph)
 
         while True:
             try:
-                value = next(t)
-                yield value
+                yield next(t)
             except CyclicalDependencyError as e:
                 # TODO: Turn this into a warning, but without being too annoying with
                 #       multiple messages.  See https://github.com/conda/conda/issues/4067
@@ -301,13 +298,9 @@ class PrefixGraph:
                     if python_node in parents and node not in menuinst_parents:
                         parents.add(menuinst_node)
 
-            # 3. On windows, python noarch packages need an implicit dependency on conda added, if
-            #    conda is in the list of packages for the environment.  Python noarch packages
-            #    that have entry points use conda's own conda.exe python entry point binary. If
-            #    conda is going to be updated during an operation, the unlink / link order matters.
-            #    See issue #6057.
-            conda_node = next((node for node in graph if node.name == 'conda'), None)
-            if conda_node:
+            if conda_node := next(
+                (node for node in graph if node.name == 'conda'), None
+            ):
                 # add conda as a parent if python is a parent and node isn't a parent of conda
                 conda_parents = graph[conda_node]
                 for node, parents in graph.items():
@@ -403,8 +396,7 @@ class GeneralGraph(PrefixGraph):
 
     def breadth_first_search_by_name(self, root_spec, target_spec):
         """Return shorted path from root_spec to spec_name"""
-        queue = []
-        queue.append([root_spec])
+        queue = [[root_spec]]
         visited = []
         while queue:
             path = queue.pop(0)
@@ -421,9 +413,10 @@ class GeneralGraph(PrefixGraph):
             for _, deps in specs.items():
                 children.extend(list(deps))
             for adj in children:
-                if adj.name == target_spec.name and adj.version != target_spec.version:
-                    pass
-                else:
+                if (
+                    adj.name != target_spec.name
+                    or adj.version == target_spec.version
+                ):
                     new_path = list(path)
                     new_path.append(adj)
                     queue.append(new_path)

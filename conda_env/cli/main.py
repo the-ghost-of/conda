@@ -17,8 +17,10 @@ from conda.gateways.logging import initialize_logging
 try:
     from conda.exceptions import conda_exception_handler
 except ImportError as e:
-    if 'CONDA_DEFAULT_ENV' in os.environ:
-        sys.stderr.write("""
+    if 'CONDA_DEFAULT_ENV' not in os.environ:
+        raise e
+
+    sys.stderr.write("""
 There was an error importing conda.
 
 It appears this was caused by installing conda-env into a conda
@@ -35,10 +37,7 @@ environment, please open a bug report at:
     https://github.com/conda/conda-env
 
 """.lstrip())
-        sys.exit(-1)
-    else:
-        raise e
-
+    sys.exit(-1)
 from . import main_create
 from . import main_export
 from . import main_list
@@ -75,8 +74,7 @@ def do_call(args, parser):
     # func_name should always be 'execute'
     from importlib import import_module
     module = import_module(relative_mod, __name__.rsplit('.', 1)[0])
-    exit_code = getattr(module, func_name)(args, parser)
-    return exit_code
+    return getattr(module, func_name)(args, parser)
 
 
 def main():

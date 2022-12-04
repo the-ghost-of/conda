@@ -27,19 +27,17 @@ def _solve(prefix, specs, args, env, *_, **kwargs):
     subdirs = IndexedSet(basename(url) for url in _channel_priority_map)
 
     solver_backend = context.plugin_manager.get_cached_solver_backend()
-    solver = solver_backend(prefix, channels, subdirs, specs_to_add=specs)
-    return solver
+    return solver_backend(prefix, channels, subdirs, specs_to_add=specs)
 
 
 def dry_run(specs, args, env, *_, **kwargs):
     solver = _solve(tempfile.mkdtemp(), specs, args, env, *_, **kwargs)
     pkgs = solver.solve_final_state()
-    solved_env = Environment(
+    return Environment(
         name=env.name,
         dependencies=[str(p) for p in pkgs],
-        channels=env.channels
+        channels=env.channels,
     )
-    return solved_env
 
 
 def install(prefix, specs, args, env, *_, **kwargs):

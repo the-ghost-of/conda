@@ -51,10 +51,7 @@ def print_result(args, prefix, result):
         if result["conda"] is None and result["pip"] is None:
             stdout_json_success(message="All requested packages already installed.")
         else:
-            if result["conda"] is not None:
-                actions = result["conda"]
-            else:
-                actions = {}
+            actions = result["conda"] if result["conda"] is not None else {}
             if result["pip"] is not None:
                 actions["PIP"] = result["pip"]
             stdout_json_success(prefix=prefix, actions=actions)

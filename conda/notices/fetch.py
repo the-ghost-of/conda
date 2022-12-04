@@ -36,10 +36,10 @@ def get_notice_responses(
         return tuple(
             filter(
                 None,
-                (
-                    chn_info
-                    for chn_info in executor.map(
-                        lambda args: get_channel_notice_response(*args), url_and_names
+                iter(
+                    executor.map(
+                        lambda args: get_channel_notice_response(*args),
+                        url_and_names,
                     )
                 ),
             )

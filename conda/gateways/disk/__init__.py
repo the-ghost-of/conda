@@ -97,4 +97,3 @@ def mkdir_p_sudo_safe(path):
         except OSError as e:
             log.trace("Failed to set permissions to 2775 on %s (%d %d)",
                       path, e.errno, errorcode[e.errno])
-            pass

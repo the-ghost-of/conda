@@ -108,10 +108,7 @@ class _FeaturesField(ListField):
         return super().box(instance, instance_type, val)
 
     def dump(self, instance, instance_type, val):
-        if isiterable(val):
-            return ' '.join(val)
-        else:
-            return val or ()  # default value is (), and default_in_dump=False
+        return ' '.join(val) if isiterable(val) else val or ()
 
 
 class ChannelField(ComposableField):
@@ -120,11 +117,9 @@ class ChannelField(ComposableField):
         super().__init__(Channel, required=False, aliases=aliases)
 
     def dump(self, instance, instance_type, val):
-        if val:
-            return str(val)
-        else:
+        if not val:
             val = instance.channel  # call __get__
-            return str(val)
+        return str(val)
 
     def __get__(self, instance, instance_type):
         try:
@@ -194,9 +189,7 @@ class PackageTypeField(EnumField):
     def __get__(self, instance, instance_type):
         val = super().__get__(instance, instance_type)
         if val is None:
-            # look in noarch field
-            noarch_val = instance.noarch
-            if noarch_val:
+            if noarch_val := instance.noarch:
                 type_map = {
                     NoarchType.generic: PackageType.NOARCH_GENERIC,
                     NoarchType.python: PackageType.NOARCH_PYTHON,
@@ -289,12 +282,7 @@ class PackageRecord(DictSafeMixin, Entity):
         return self._pkey == other._pkey
 
     def dist_str(self):
-        return "{}{}::{}-{}-{}".format(
-            self.channel.canonical_name,
-            ("/" + self.subdir) if self.subdir else "",
-            self.name,
-            self.version,
-            self.build)
+        return f'{self.channel.canonical_name}{f"/{self.subdir}" if self.subdir else ""}::{self.name}-{self.version}-{self.build}'
 
     def dist_fields_dump(self):
         return {
@@ -354,9 +342,7 @@ class PackageRecord(DictSafeMixin, Entity):
     size = IntegerField(required=False)
 
     def __str__(self):
-        return "{}/{}::{}=={}={}".format(
-            self.channel.canonical_name, self.subdir, self.name, self.version, self.build
-        )
+        return f"{self.channel.canonical_name}/{self.subdir}::{self.name}=={self.version}={self.build}"
 
     def to_match_spec(self):
         return MatchSpec(
@@ -375,16 +361,14 @@ class PackageRecord(DictSafeMixin, Entity):
 
     @property
     def namekey(self):
-        return "global:" + self.name
+        return f"global:{self.name}"
 
     def record_id(self):
         # WARNING: This is right now only used in link.py _change_report_str(). It is not
         #          the official record_id / uid until it gets namespace.  Even then, we might
         #          make the format different.  Probably something like
         #              channel_name/subdir:namespace:name-version-build_number-build_string
-        return "{}/{}::{}-{}-{}".format(
-            self.channel.name, self.subdir, self.name, self.version, self.build
-        )
+        return f"{self.channel.name}/{self.subdir}::{self.name}-{self.version}-{self.build}"
 
 
 class Md5Field(StringField):
@@ -425,8 +409,7 @@ class PackageCacheRecord(PackageRecord):
         return basename(self.package_tarball_full_path)
 
     def _calculate_md5sum(self):
-        memoized_md5 = getattr(self, '_memoized_md5', None)
-        if memoized_md5:
+        if memoized_md5 := getattr(self, '_memoized_md5', None):
             return memoized_md5
 
         from os.path import isfile

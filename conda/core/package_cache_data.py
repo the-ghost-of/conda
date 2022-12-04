@@ -124,8 +124,7 @@ class PackageCacheData(metaclass=PackageCacheType):
                 or isfile(full_path)
                 and full_path.endswith(_CONDA_TARBALL_EXTENSIONS)
             ):
-                package_cache_record = self._make_single_record(base_name)
-                if package_cache_record:
+                if package_cache_record := self._make_single_record(base_name):
                     _package_cache_records[package_cache_record] = package_cache_record
 
     def reload(self):
@@ -155,9 +154,8 @@ class PackageCacheData(metaclass=PackageCacheType):
             param = MatchSpec(param)
         if isinstance(param, MatchSpec):
             return (pcrec for pcrec in self._package_cache_records.values() if param.match(pcrec))
-        else:
-            assert isinstance(param, PackageRecord)
-            return (pcrec for pcrec in self._package_cache_records.values() if pcrec == param)
+        assert isinstance(param, PackageRecord)
+        return (pcrec for pcrec in self._package_cache_records.values() if pcrec == param)
 
     def iter_records(self):
         return iter(self._package_cache_records)
@@ -188,9 +186,9 @@ class PackageCacheData(metaclass=PackageCacheType):
             if i_wri is True:
                 return package_cache
             elif i_wri is None:
-                # means package cache directory doesn't exist, need to try to create it
-                created = create_package_cache_directory(package_cache.pkgs_dir)
-                if created:
+                if created := create_package_cache_directory(
+                    package_cache.pkgs_dir
+                ):
                     package_cache.__is_writable = True
                     return package_cache
 
@@ -200,17 +198,15 @@ class PackageCacheData(metaclass=PackageCacheType):
     def writable_caches(cls, pkgs_dirs=None):
         if pkgs_dirs is None:
             pkgs_dirs = context.pkgs_dirs
-        writable_caches = tuple(filter(lambda c: c.is_writable, (cls(pd) for pd in pkgs_dirs)))
-        return writable_caches
+        return tuple(filter(lambda c: c.is_writable, (cls(pd) for pd in pkgs_dirs)))
 
     @classmethod
     def read_only_caches(cls, pkgs_dirs=None):
         if pkgs_dirs is None:
             pkgs_dirs = context.pkgs_dirs
-        read_only_caches = tuple(
+        return tuple(
             filter(lambda c: not c.is_writable, (cls(pd) for pd in pkgs_dirs))
         )
-        return read_only_caches
 
     @classmethod
     def all_caches_writable_first(cls, pkgs_dirs=None):
@@ -257,12 +253,11 @@ class PackageCacheData(metaclass=PackageCacheType):
     @classmethod
     def tarball_file_in_cache(cls, tarball_path, md5sum=None, exclude_caches=()):
         tarball_full_path, md5sum = cls._clean_tarball_path_and_get_md5sum(tarball_path, md5sum)
-        pc_entry = first(
+        return first(
             cls(pkgs_dir).tarball_file_in_this_cache(tarball_full_path, md5sum)
             for pkgs_dir in context.pkgs_dirs
             if pkgs_dir not in exclude_caches
         )
-        return pc_entry
 
     @classmethod
     def clear(cls):
@@ -271,11 +266,11 @@ class PackageCacheData(metaclass=PackageCacheType):
     def tarball_file_in_this_cache(self, tarball_path, md5sum=None):
         tarball_full_path, md5sum = self._clean_tarball_path_and_get_md5sum(tarball_path, md5sum)
         tarball_basename = basename(tarball_full_path)
-        pc_entry = first(
-            (pc_entry for pc_entry in self.values()),
-            key=lambda pce: pce.tarball_basename == tarball_basename and pce.md5 == md5sum,
+        return first(
+            iter(self.values()),
+            key=lambda pce: pce.tarball_basename == tarball_basename
+            and pce.md5 == md5sum,
         )
-        return pc_entry
 
     @property
     def _package_cache_records(self):
@@ -331,7 +326,7 @@ class PackageCacheData(metaclass=PackageCacheType):
 
     def __repr__(self):
         args = (f"{key}={getattr(self, key)!r}" for key in ("pkgs_dir",))
-        return "{}({})".format(self.__class__.__name__, ", ".join(args))
+        return f'{self.__class__.__name__}({", ".join(args)})'
 
     def _make_single_record(self, package_filename):
         # delay-load this to help make sure libarchive can be found
@@ -344,13 +339,13 @@ class PackageCacheData(metaclass=PackageCacheType):
         # try reading info/repodata_record.json
         try:
             repodata_record = read_repodata_json(extracted_package_dir)
-            package_cache_record = PackageCacheRecord.from_objects(
+            return PackageCacheRecord.from_objects(
                 repodata_record,
                 package_tarball_full_path=package_tarball_full_path,
                 extracted_package_dir=extracted_package_dir,
             )
-            return package_cache_record
-        except (OSError, JSONDecodeError, ValueError, FileNotFoundError) as e:
+
+        except (OSError, ValueError) as e:
             # EnvironmentError if info/repodata_record.json doesn't exists
             # JsonDecodeError if info/repodata_record.json is partially extracted or corrupted
             #   python 2.7 raises ValueError instead of JsonDecodeError
@@ -364,7 +359,7 @@ class PackageCacheData(metaclass=PackageCacheType):
             # try reading info/index.json
             try:
                 raw_json_record = read_index_json(extracted_package_dir)
-            except (OSError, JSONDecodeError, ValueError, FileNotFoundError) as e:
+            except (OSError, ValueError) as e:
                 # EnvironmentError if info/index.json doesn't exist
                 # JsonDecodeError if info/index.json is partially extracted or corrupted
                 #   python 2.7 raises ValueError instead of JsonDecodeError
@@ -400,7 +395,7 @@ class PackageCacheData(metaclass=PackageCacheType):
                                 return None
                         try:
                             raw_json_record = read_index_json(extracted_package_dir)
-                        except (OSError, JSONDecodeError, FileNotFoundError):
+                        except (OSError, JSONDecodeError):
                             # At this point, we can assume the package tarball is bad.
                             # Remove everything and move on.
                             rm_rf(package_tarball_full_path)
@@ -810,23 +805,21 @@ class ProgressiveFetchExtract:
     def _progress_bar(prec_or_spec, position=None, leave=False):
         desc = ""
         if prec_or_spec.name and prec_or_spec.version:
-            desc = "{}-{}".format(prec_or_spec.name or "", prec_or_spec.version or "")
+            desc = f'{prec_or_spec.name or ""}-{prec_or_spec.version or ""}'
         size = getattr(prec_or_spec, "size", None)
         size_str = size and human_bytes(size) or ""
-        if len(desc) > 0:
+        if desc != "":
             desc = "%-20.20s | " % desc
         if len(size_str) > 0:
             desc += "%-9s | " % size_str
 
-        progress_bar = ProgressBar(
+        return ProgressBar(
             desc,
             not context.verbosity and not context.quiet,
             context.json,
             position=position,
             leave=leave,
         )
-
-        return progress_bar
 
     def __hash__(self):
         return hash(self.link_precs)

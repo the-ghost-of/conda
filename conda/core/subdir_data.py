@@ -85,12 +85,10 @@ class SubdirDataType(type):
         cache_key = channel.url(with_credentials=True), repodata_fn
         if cache_key in SubdirData._cache_:
             cache_entry = SubdirData._cache_[cache_key]
-            if cache_key[0].startswith("file://"):
-                file_path = url_to_path(channel.url() + "/" + repodata_fn)
-                if exists(file_path):
-                    if cache_entry._mtime > getmtime(file_path):
-                        return cache_entry
-            else:
+            if not cache_key[0].startswith("file://"):
+                return cache_entry
+            file_path = url_to_path(f"{channel.url()}/{repodata_fn}")
+            if exists(file_path) and cache_entry._mtime > getmtime(file_path):
                 return cache_entry
         subdir_data_instance = super().__call__(channel, repodata_fn)
         subdir_data_instance._mtime = now
@@ -120,8 +118,7 @@ class SubdirData(metaclass=SubdirDataType):
         channel_urls = all_channel_urls(channels, subdirs=subdirs)
         if context.offline:
             grouped_urls = groupby(lambda url: url.startswith("file://"), channel_urls)
-            ignored_urls = grouped_urls.get(False, ())
-            if ignored_urls:
+            if ignored_urls := grouped_urls.get(False, ()):
                 log.info(
                     "Ignoring the following channel urls because mode is offline.%s",
                     dashlist(ignored_urls),
@@ -199,7 +196,7 @@ class SubdirData(metaclass=SubdirDataType):
 
     @property
     def url_w_repodata_fn(self):
-        return self.url_w_subdir + "/" + self.repodata_fn
+        return f"{self.url_w_subdir}/{self.repodata_fn}"
 
     @property
     def cache_path_json(self):
@@ -270,10 +267,9 @@ class SubdirData(metaclass=SubdirDataType):
                     self.cache_path_json,
                 )
 
-                _internal_state = self._read_local_repdata(
+                return self._read_local_repdata(
                     mod_etag_headers.get("_etag"), mod_etag_headers.get("_mod")
                 )
-                return _internal_state
 
             if context.local_repodata_ttl > 1:
                 max_age = context.local_repodata_ttl
@@ -290,10 +286,9 @@ class SubdirData(metaclass=SubdirDataType):
                     self.cache_path_json,
                     timeout,
                 )
-                _internal_state = self._read_local_repdata(
+                return self._read_local_repdata(
                     mod_etag_headers.get("_etag"), mod_etag_headers.get("_mod")
                 )
-                return _internal_state
 
             log.debug(
                 "Local cache timed out for %s at %s", self.url_w_repodata_fn, self.cache_path_json
@@ -310,21 +305,20 @@ class SubdirData(metaclass=SubdirDataType):
             if not raw_repodata_str and self.repodata_fn != REPODATA_FN:
                 raise UnavailableInvalidChannel(self.url_w_repodata_fn, 404)
         except UnavailableInvalidChannel:
-            if self.repodata_fn != REPODATA_FN:
-                self.repodata_fn = REPODATA_FN
-                return self._load()
-            else:
+            if self.repodata_fn == REPODATA_FN:
                 raise
+            self.repodata_fn = REPODATA_FN
+            return self._load()
         except Response304ContentUnchanged:
             log.debug(
                 "304 NOT MODIFIED for '%s'. Updating mtime and loading from disk",
                 self.url_w_repodata_fn,
             )
             touch(self.cache_path_json)
-            _internal_state = self._read_local_repdata(
+            return self._read_local_repdata(
                 mod_etag_headers.get("_etag"), mod_etag_headers.get("_mod")
             )
-            return _internal_state
+
         else:
             if not isdir(dirname(self.cache_path_json)):
                 mkdir_p(dirname(self.cache_path_json))
@@ -352,9 +346,7 @@ class SubdirData(metaclass=SubdirDataType):
             log.debug("Failed to dump pickled repodata.", exc_info=True)
 
     def _read_local_repdata(self, etag, mod_stamp):
-        # first try reading pickled data
-        _pickled_state = self._read_pickled(etag, mod_stamp)
-        if _pickled_state:
+        if _pickled_state := self._read_pickled(etag, mod_stamp):
             return _pickled_state
 
         # pickled data is bad or doesn't exist; load cached json
@@ -527,8 +519,7 @@ def read_mod_and_etag(path):
         try:
             with closing(mmap(f.fileno(), 0, access=ACCESS_READ)) as m:
                 match_objects = take(3, re.finditer(REPODATA_HEADER_RE, m))
-                result = dict(map(ensure_unicode, mo.groups()) for mo in match_objects)
-                return result
+                return dict(map(ensure_unicode, mo.groups()) for mo in match_objects)
         except (BufferError, ValueError):  # pragma: no cover
             # BufferError: cannot close exported pointers exist
             #   https://github.com/conda/conda/issues/4592
@@ -625,16 +616,18 @@ def fetch_repodata_remote_request(url, etag, mod_stamp, repodata_fn=REPODATA_FN)
                 log.info(
                     "Unable to retrieve repodata (response: %d) for %s",
                     status_code,
-                    url + "/" + repodata_fn,
+                    f"{url}/{repodata_fn}",
                 )
+
                 return None
             else:
                 if context.allow_non_channel_urls:
                     stderrlog.warning(
                         "Unable to retrieve repodata (response: %d) for %s",
                         status_code,
-                        url + "/" + repodata_fn,
+                        f"{url}/{repodata_fn}",
                     )
+
                     return None
                 else:
                     raise UnavailableInvalidChannel(
@@ -775,7 +768,7 @@ def fetch_repodata_remote_request(url, etag, mod_stamp, repodata_fn=REPODATA_FN)
 
 def make_feature_record(feature_name):
     # necessary for the SAT solver to do the right thing with features
-    pkg_name = "%s@" % feature_name
+    pkg_name = f"{feature_name}@"
     return PackageRecord(
         name=pkg_name,
         version="0",
@@ -809,8 +802,7 @@ def cache_fn_url(url, repodata_fn=REPODATA_FN):
 
 
 def add_http_value_to_dict(resp, http_key, d, dict_key):
-    value = resp.headers.get(http_key)
-    if value:
+    if value := resp.headers.get(http_key):
         d[dict_key] = value
 
 

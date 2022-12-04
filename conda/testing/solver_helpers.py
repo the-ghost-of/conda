@@ -92,9 +92,7 @@ class SimpleEnvironment:
 
     def solver_transaction(self, add=(), remove=(), as_specs=False):
         packages = self.solver(add=add, remove=remove).solve_final_state()
-        if as_specs:
-            return packages
-        return package_string_set(packages)
+        return packages if as_specs else package_string_set(packages)
 
     def install(self, *specs, as_specs=False):
         return self.solver_transaction(add=specs, as_specs=as_specs)

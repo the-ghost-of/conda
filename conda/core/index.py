@@ -44,7 +44,10 @@ def check_allowlist(channel_urls):
         ))
         for url in channel_urls:
             these_urls = Channel(url).base_urls
-            if not all(this_url in allowlist_channel_urls for this_url in these_urls):
+            if any(
+                this_url not in allowlist_channel_urls
+                for this_url in these_urls
+            ):
                 raise ChannelNotAllowed(Channel(url))
 
 
@@ -84,12 +87,12 @@ def get_index(channel_urls=(), prepend=True, platform=None,
 
 
 def fetch_index(channel_urls, use_cache=False, index=None, repodata_fn=context.repodata_fns[-1]):
-    log.debug('channel_urls=' + repr(channel_urls))
+    log.debug(f'channel_urls={repr(channel_urls)}')
     index = {}
     with ThreadLimitedThreadPoolExecutor() as executor:
         subdir_instantiator = lambda url: SubdirData(Channel(url), repodata_fn=repodata_fn)
         for f in executor.map(subdir_instantiator, channel_urls):
-            index.update((rec, rec) for rec in f.iter_records())
+            index |= ((rec, rec) for rec in f.iter_records())
     return index
 
 

@@ -86,11 +86,7 @@ else:  # pragma: no cover
     def lexists(path):
         if islink(path):
             return True
-        if isdir(path):
-            return True
-        if isfile(path):
-            return True
-        return False
+        return True if isdir(path) else bool(isfile(path))
 
     MAX_PATH = 260
     IO_REPARSE_TAG_SYMLINK = 0xA000000C
@@ -204,7 +200,7 @@ else:  # pragma: no cover
         if path.startswith('\\\\?\\'):
             return path
         path = abspath(path)
-        if not path[1] == ':':
+        if path[1] != ':':
             # python doesn't include the drive letter, but \\?\ requires it
             path = getcwd()[:2] + path
         return '\\\\?\\' + path
@@ -348,7 +344,7 @@ else:  # pragma: no cover
         bytes = create_string_buffer(res)
         p_rdb = cast(bytes, POINTER(REPARSE_DATA_BUFFER))
         rdb = p_rdb.contents
-        if not rdb.tag == IO_REPARSE_TAG_SYMLINK:
+        if rdb.tag != IO_REPARSE_TAG_SYMLINK:
             raise ParseError("Expected IO_REPARSE_TAG_SYMLINK, but got %d" % rdb.tag)
 
         handle_nonzero_success(CloseHandle(handle))

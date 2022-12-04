@@ -236,12 +236,7 @@ class VersionOrder(metaclass=SingleStrArgCachingType):
                         # ensure '*' < 'DEV' < '_' < 'a' < number
                         # by upper-casing (all other strings are lower case)
                         c[j] = 'DEV'
-                if v[k][0].isdigit():
-                    v[k] = c
-                else:
-                    # components shall start with a number to keep numbers and
-                    # strings in phase => prepend fillvalue
-                    v[k] = [self.fillvalue] + c
+                v[k] = c if v[k][0].isdigit() else [self.fillvalue] + c
 
     def __str__(self):
         return self.norm_version
@@ -339,7 +334,7 @@ def treeify(spec_str):
     # Converts a VersionSpec expression string into a tuple-based
     # expression tree.
     assert isinstance(spec_str, str)
-    tokens = re.findall(VSPEC_TOKENS, '(%s)' % spec_str)
+    tokens = re.findall(VSPEC_TOKENS, f'({spec_str})')
     output = []
     stack = []
 
@@ -380,7 +375,10 @@ def treeify(spec_str):
         else:
             output.append(item)
     if stack:
-        raise InvalidVersionSpec(spec_str, "unable to convert to expression tree: %s" % stack)
+        raise InvalidVersionSpec(
+            spec_str, f"unable to convert to expression tree: {stack}"
+        )
+
     return output[0]
 
 
@@ -398,17 +396,17 @@ def untreeify(spec, _inand=False, depth=0):
         >>> untreeify(('|', '1.5', (',', ('|', '1.6', '1.7'), '1.8', '1.9'), '2.0', '2.1'))
         '1.5|((1.6|1.7),1.8,1.9)|2.0|2.1'
     """
-    if isinstance(spec, tuple):
-        if spec[0] == '|':
-            res = '|'.join(map(lambda x: untreeify(x, depth=depth + 1), spec[1:]))
-            if _inand or depth > 0:
-                res = '(%s)' % res
-        else:
-            res = ','.join(map(lambda x: untreeify(x, _inand=True, depth=depth + 1), spec[1:]))
-            if depth > 0:
-                res = '(%s)' % res
-        return res
-    return spec
+    if not isinstance(spec, tuple):
+        return spec
+    if spec[0] == '|':
+        res = '|'.join(map(lambda x: untreeify(x, depth=depth + 1), spec[1:]))
+        if _inand or depth > 0:
+            res = f'({res})'
+    else:
+        res = ','.join(map(lambda x: untreeify(x, _inand=True, depth=depth + 1), spec[1:]))
+        if depth > 0:
+            res = f'({res})'
+    return res
 
 
 def compatible_release_operator(x, y):
@@ -541,15 +539,15 @@ class VersionSpec(BaseSpec, metaclass=SingleStrArgCachingType):
                 elif operator_str == "~=":
                     raise InvalidVersionSpec(vspec_str, "invalid operator with '.*'")
                 else:
-                    log.warning("Using .* with relational operator is superfluous and deprecated "
-                                "and will be removed in a future version of conda. Your spec was "
-                                "{}, but conda is ignoring the .* and treating it as {}"
-                                .format(vo_str, vo_str[:-2]))
+                    log.warning(
+                        f"Using .* with relational operator is superfluous and deprecated and will be removed in a future version of conda. Your spec was {vo_str}, but conda is ignoring the .* and treating it as {vo_str[:-2]}"
+                    )
+
                     vo_str = vo_str[:-2]
             try:
                 self.operator_func = OPERATOR_MAP[operator_str]
             except KeyError:
-                raise InvalidVersionSpec(vspec_str, "invalid operator: %s" % operator_str)
+                raise InvalidVersionSpec(vspec_str, f"invalid operator: {operator_str}")
             self.matcher_vo = VersionOrder(vo_str)
             matcher = self.operator_match
             is_exact = operator_str == "=="
@@ -558,13 +556,13 @@ class VersionSpec(BaseSpec, metaclass=SingleStrArgCachingType):
             is_exact = False
         elif '*' in vspec_str.rstrip('*'):
             rx = vspec_str.replace('.', r'\.').replace('+', r'\+').replace('*', r'.*')
-            rx = r'^(?:%s)$' % rx
+            rx = f'^(?:{rx})$'
             self.regex = re.compile(rx)
             matcher = self.regex_match
             is_exact = False
         elif vspec_str[-1] == '*':
             if vspec_str[-2:] != '.*':
-                vspec_str = vspec_str[:-1] + '.*'
+                vspec_str = f'{vspec_str[:-1]}.*'
 
             # if vspec_str[-1] in OPERATOR_START:
             #     m = version_relation_re.match(vspec_str)
@@ -636,7 +634,7 @@ class BuildNumberMatch(BaseSpec, metaclass=SingleStrArgCachingType):
             try:
                 self.operator_func = OPERATOR_MAP[operator_str]
             except KeyError:
-                raise InvalidVersionSpec(vspec_str, "invalid operator: %s" % operator_str)
+                raise InvalidVersionSpec(vspec_str, f"invalid operator: {operator_str}")
             self.matcher_vo = VersionOrder(vo_str)
             matcher = self.operator_match
 
@@ -648,9 +646,6 @@ class BuildNumberMatch(BaseSpec, metaclass=SingleStrArgCachingType):
             self.regex = re.compile(vspec_str)
             matcher = self.regex_match
             is_exact = False
-        # if hasattr(spec, 'match'):
-        #     self.spec = _spec
-        #     self.match = spec.match
         else:
             matcher = self.exact_match
             is_exact = True

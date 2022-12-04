@@ -71,9 +71,9 @@ def generate_pumls(app, config):
     # TODO: make this a configurable thing via the docs config
     packages = ["conda"]
 
+    output_format = "puml"
     for package in packages:
         output_path = os.path.join(here, "..", "dev-guide", "umls")
-        output_format = "puml"
         files = [
             f"packages_{package}.{output_format}",
             f"classes_{package}.{output_format}",

@@ -26,9 +26,7 @@ def execute(args, parser):
         subdirs = context.subdirs
 
     if args.envs:
-        with Spinner("Searching environments for %s" % spec,
-                     not context.verbosity and not context.quiet,
-                     context.json):
+        with Spinner(f"Searching environments for {spec}", not context.verbosity and not context.quiet, context.json):
             prefix_matches = query_all_prefixes(spec)
             ordered_result = tuple({
                 'location': prefix,
@@ -52,14 +50,18 @@ def execute(args, parser):
                 "Location",
             )]
             for pkg_group in ordered_result:
-                for prec in pkg_group['package_records']:
-                    builder.append('%-15s %15s %15s  %-20s %-20s' % (
+                builder.extend(
+                    '%-15s %15s %15s  %-20s %-20s'
+                    % (
                         prec.name,
                         prec.version,
                         prec.build,
                         prec.channel.name,
                         pkg_group['location'],
-                    ))
+                    )
+                    for prec in pkg_group['package_records']
+                )
+
             print('\n'.join(builder))
         return 0
 
@@ -70,7 +72,7 @@ def execute(args, parser):
         matches = sorted(SubdirData.query_all(spec, channel_urls, subdirs),
                          key=lambda rec: (rec.name, VersionOrder(rec.version), rec.build))
     if not matches and spec.get_exact_value("name"):
-        flex_spec = MatchSpec(spec, name="*%s*" % spec.name)
+        flex_spec = MatchSpec(spec, name=f"*{spec.name}*")
         if not context.json:
             print(f"No match found for: {spec}. Search: {flex_spec}")
         matches = sorted(SubdirData.query_all(flex_spec, channel_urls, subdirs),
@@ -103,13 +105,17 @@ def execute(args, parser):
             "Build",
             "Channel",
         )]
-        for record in matches:
-            builder.append('%-20s %15s %15s  %-20s' % (
+        builder.extend(
+            '%-20s %15s %15s  %-20s'
+            % (
                 record.name,
                 record.version,
                 record.build,
                 record.channel.name,
-            ))
+            )
+            for record in matches
+        )
+
         print('\n'.join(builder))
 
 
@@ -120,7 +126,7 @@ def pretty_record(record):
             builder.append("%-12s: %s" % (display_name, value))
 
     builder = []
-    builder.append(record.name + " " + record.version + " " + record.build)
+    builder.append(f"{record.name} {record.version} {record.build}")
     builder.append('-'*len(builder[0]))
 
     push_line("file name", "fn")

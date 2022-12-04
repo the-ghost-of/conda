@@ -30,7 +30,7 @@ from ..common.constants import NULL
 log = getLogger(__name__)
 
 # duplicated code in the interest of import efficiency
-on_win = bool(sys.platform == "win32")
+on_win = sys.platform == "win32"
 user_rc_path = abspath(expanduser('~/.condarc'))
 escaped_user_rc_path = user_rc_path.replace("%", "%%")
 escaped_sys_rc_path = abspath(join(sys.prefix, '.condarc')).replace("%", "%%")
@@ -42,11 +42,13 @@ def generate_parser():
                     ' environments and packages.',
     )
     p.add_argument(
-        '-V', '--version',
+        '-V',
+        '--version',
         action='version',
-        version='conda %s' % __version__,
-        help="Show the conda version number and exit."
+        version=f'conda {__version__}',
+        help="Show the conda version number and exit.",
     )
+
     p.add_argument(
         "--debug",
         action="store_true",
@@ -141,8 +143,7 @@ class ArgumentParser(ArgumentParserBase):
     def error(self, message):
         import re
         from .find_commands import find_executable
-        exc = sys.exc_info()[1]
-        if exc:
+        if exc := sys.exc_info()[1]:
             # this is incredibly lame, but argparse stupidly does not expose
             # reasonable hooks for customizing error handling
             if hasattr(exc, 'argument_name'):
@@ -150,13 +151,8 @@ class ArgumentParser(ArgumentParserBase):
             else:
                 argument = None
             if argument and argument.dest == "cmd":
-                m = re.match(r"invalid choice: u?'([-\w]*?)'", exc.message)
-                if m:
-                    cmd = m.group(1)
-                    if not cmd:
-                        self.print_help()
-                        sys.exit(0)
-                    else:
+                if m := re.match(r"invalid choice: u?'([-\w]*?)'", exc.message):
+                    if cmd := m.group(1):
                         # Run the subcommand from plugins
                         for subcommand in self._subcommands:
                             if cmd == subcommand.name:
@@ -169,14 +165,17 @@ class ArgumentParser(ArgumentParserBase):
                             ),
                             PendingDeprecationWarning,
                         )
-                        executable = find_executable('conda-' + cmd)
+                        executable = find_executable(f'conda-{cmd}')
                         if not executable:
                             from ..exceptions import CommandNotFoundError
                             raise CommandNotFoundError(cmd)
-                        args = [find_executable('conda-' + cmd)]
+                        args = [find_executable(f'conda-{cmd}')]
                         args.extend(sys.argv[2:])
                         _exec(args, os.environ)
 
+                    else:
+                        self.print_help()
+                        sys.exit(0)
         super().error(message)
 
     def print_help(self):
@@ -184,11 +183,9 @@ class ArgumentParser(ArgumentParserBase):
 
         if sys.argv[1:] in ([], [''], ['help'], ['-h'], ['--help']):
             from .find_commands import find_commands
-            other_commands = find_commands()
-            if other_commands:
-                builder = ['']
-                builder.append("conda commands available from other packages (legacy):")
-                builder.extend('  %s' % cmd for cmd in sorted(other_commands))
+            if other_commands := find_commands():
+                builder = ['', "conda commands available from other packages (legacy):"]
+                builder.extend(f'  {cmd}' for cmd in sorted(other_commands))
                 print('\n'.join(builder))
 
     def _check_value(self, action, value):

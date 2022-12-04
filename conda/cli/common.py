@@ -27,10 +27,10 @@ def confirm(message="Proceed", choices=("yes", "no"), default="yes", dry_run=NUL
     options = []
     for option in choices:
         if option == default:
-            options.append('[%s]' % option[0])
+            options.append(f'[{option[0]}]')
         else:
             options.append(option[0])
-    message = "{} ({})? ".format(message, "/".join(options))
+    message = f'{message} ({"/".join(options)})? '
     choices = {alt: choice for choice in choices for alt in [choice, choice[0]]}
     choices[""] = default
     while True:
@@ -39,7 +39,7 @@ def confirm(message="Proceed", choices=("yes", "no"), default="yes", dry_run=NUL
         sys.stdout.flush()
         user_choice = sys.stdin.readline().strip().lower()
         if user_choice not in choices:
-            print("Invalid choice: %s" % user_choice)
+            print(f"Invalid choice: {user_choice}")
         else:
             sys.stdout.write("\n")
             sys.stdout.flush()
@@ -91,7 +91,7 @@ def arg2spec(arg, json=False, update=False):
         spec = MatchSpec(arg)
     except:
         from ..exceptions import CondaValueError
-        raise CondaValueError('invalid package specification: %s' % arg)
+        raise CondaValueError(f'invalid package specification: {arg}')
 
     name = spec.name
     if not spec._is_simple() and update:
@@ -138,16 +138,15 @@ def spec_from_line(line):
     if cc:
         return name + cc.replace('=', ' ')
     elif pc:
-        if pc.startswith("~= "):
-            assert (
-                pc.count("~=") == 1
-            ), f"Overly complex 'Compatible release' spec not handled {line}"
-            assert pc.count("."), f"No '.' in 'Compatible release' version {line}"
-            ver = pc.replace("~= ", "")
-            ver2 = ".".join(ver.split(".")[:-1]) + ".*"
-            return name + " >=" + ver + ",==" + ver2
-        else:
-            return name + ' ' + pc.replace(' ', '')
+        if not pc.startswith("~= "):
+            return f'{name} ' + pc.replace(' ', '')
+        assert (
+            pc.count("~=") == 1
+        ), f"Overly complex 'Compatible release' spec not handled {line}"
+        assert pc.count("."), f"No '.' in 'Compatible release' version {line}"
+        ver = pc.replace("~= ", "")
+        ver2 = ".".join(ver.split(".")[:-1]) + ".*"
+        return f"{name} >={ver},=={ver2}"
     else:
         return name
 
@@ -185,10 +184,7 @@ def names_in_specs(names, specs):
 
 
 def disp_features(features):
-    if features:
-        return '[%s]' % ' '.join(features)
-    else:
-        return ''
+    return f"[{' '.join(features)}]" if features else ''
 
 
 @swallow_broken_pipe
@@ -198,14 +194,13 @@ def stdout_json(d):
 
 def stdout_json_success(success=True, **kwargs):
     result = {'success': success}
-    actions = kwargs.pop('actions', None)
-    if actions:
+    if actions := kwargs.pop('actions', None):
         if 'LINK' in actions:
             actions['LINK'] = [prec.dist_fields_dump() for prec in actions['LINK']]
         if 'UNLINK' in actions:
             actions['UNLINK'] = [prec.dist_fields_dump() for prec in actions['UNLINK']]
         result['actions'] = actions
-    result.update(kwargs)
+    result |= kwargs
     stdout_json(result)
 
 
@@ -251,10 +246,9 @@ def validate_prefix(prefix):
     :returns: Valid prefix.
     :rtype: str
     """
-    if isdir(prefix):
-        if not isfile(join(prefix, 'conda-meta', 'history')):
-            raise DirectoryNotACondaEnvironmentError(prefix)
-    else:
+    if not isdir(prefix):
         raise EnvironmentLocationNotFound(prefix)
 
+    if not isfile(join(prefix, 'conda-meta', 'history')):
+        raise DirectoryNotACondaEnvironmentError(prefix)
     return prefix

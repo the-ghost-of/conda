@@ -64,7 +64,7 @@ def raises(exception, func, string=None):
             assert string in e.args[0]
         print(e)
         return True
-    raise Exception("did not raise, gave %s" % a)
+    raise Exception(f"did not raise, gave {a}")
 
 
 @contextmanager
@@ -76,14 +76,13 @@ def captured(disallow_stderr=True):
     finally:
         c.stderr = strip_expected(c.stderr)
         if disallow_stderr and c.stderr:
-            raise Exception("Got stderr output: %s" % c.stderr)
+            raise Exception(f"Got stderr output: {c.stderr}")
 
 
 def capture_json_with_argv(command, disallow_stderr=True, ignore_stderr=False, **kwargs):
     stdout, stderr, exit_code = run_inprocess_conda_command(command, disallow_stderr)
     if kwargs.get("relaxed"):
-        match = re.match(r"\A.*?({.*})", stdout, re.DOTALL)
-        if match:
+        if match := re.match(r"\A.*?({.*})", stdout, re.DOTALL):
             stdout = match.groups()[0]
     elif stderr and not ignore_stderr:
         # TODO should be exception
@@ -149,7 +148,7 @@ def run_inprocess_conda_command(command, disallow_stderr: bool = True):
 
 def add_subdir(dist_string):
     channel_str, package_str = dist_string.split("::")
-    channel_str = channel_str + "/" + context.subdir
+    channel_str = f"{channel_str}/{context.subdir}"
     return "::".join([channel_str, package_str])
 
 
@@ -185,7 +184,7 @@ def supplement_index_with_repodata(index, repodata, channel, priority):
     platform = repodata_info.get("platform")
     subdir = repodata_info.get("subdir")
     if not subdir:
-        subdir = "{}-{}".format(repodata_info["platform"], repodata_info["arch"])
+        subdir = f'{repodata_info["platform"]}-{repodata_info["arch"]}'
     auth = channel.auth
     for fn, info in repodata["packages"].items():
         rec = PackageRecord.from_objects(
@@ -318,7 +317,7 @@ def get_index_r_1(subdir=context.subdir):
             "packages": packages,
         }
 
-    channel = Channel("https://conda.anaconda.org/channel-1/%s" % subdir)
+    channel = Channel(f"https://conda.anaconda.org/channel-1/{subdir}")
     sd = SubdirData(channel)
     with env_var(
         "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY", "false", stack_callback=conda_tests_ctxt_mgmt_def_pol
@@ -348,7 +347,7 @@ def get_index_r_2(subdir=context.subdir):
             "packages": packages,
         }
 
-    channel = Channel("https://conda.anaconda.org/channel-2/%s" % subdir)
+    channel = Channel(f"https://conda.anaconda.org/channel-2/{subdir}")
     sd = SubdirData(channel)
     with env_var(
         "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY", "false", stack_callback=conda_tests_ctxt_mgmt_def_pol
@@ -377,7 +376,7 @@ def get_index_r_4(subdir=context.subdir):
             "packages": packages,
         }
 
-    channel = Channel("https://conda.anaconda.org/channel-4/%s" % subdir)
+    channel = Channel(f"https://conda.anaconda.org/channel-4/{subdir}")
     sd = SubdirData(channel)
     with env_var(
         "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY", "false", stack_callback=conda_tests_ctxt_mgmt_def_pol
@@ -406,7 +405,7 @@ def get_index_r_5(subdir=context.subdir):
             "packages": packages,
         }
 
-    channel = Channel("https://conda.anaconda.org/channel-5/%s" % subdir)
+    channel = Channel(f"https://conda.anaconda.org/channel-5/{subdir}")
     sd = SubdirData(channel)
     with env_var(
         "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY", "true", stack_callback=conda_tests_ctxt_mgmt_def_pol
@@ -504,7 +503,7 @@ def get_index_must_unfreeze(subdir=context.subdir):
             },
         },
     }
-    channel = Channel("https://conda.anaconda.org/channel-freeze/%s" % subdir)
+    channel = Channel(f"https://conda.anaconda.org/channel-freeze/{subdir}")
     sd = SubdirData(channel)
     with env_var(
         "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY", "false", stack_callback=conda_tests_ctxt_mgmt_def_pol
@@ -533,7 +532,7 @@ def get_index_cuda(subdir=context.subdir):
             "packages": packages,
         }
 
-    channel = Channel("https://conda.anaconda.org/channel-1/%s" % subdir)
+    channel = Channel(f"https://conda.anaconda.org/channel-1/{subdir}")
     sd = SubdirData(channel)
     with env_var("CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY", "false", reset_context):
         sd._process_raw_repodata_str(json.dumps(repodata))
@@ -583,21 +582,17 @@ def get_solver(tmpdir, specs_to_add=(), specs_to_remove=(), prefix_records=(), h
     _alias_canonical_channel_name_cache_to_file_prefixed("channel-1")
     with patch.object(History, "get_requested_specs_map", return_value=spec_map):
         with env_var(
-            "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY",
-            "false",
-            stack_callback=conda_tests_ctxt_mgmt_def_pol,
-        ):
-            # We need CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY=false here again (it's also in
-            # get_index_r_*) to cover solver logics that need to load from disk instead of
-            # hitting the SubdirData cache
-            solver = context.plugin_manager.get_cached_solver_backend()(
+                    "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY",
+                    "false",
+                    stack_callback=conda_tests_ctxt_mgmt_def_pol,
+                ):
+            yield context.plugin_manager.get_cached_solver_backend()(
                 tmpdir,
                 (Channel(f"{EXPORTED_CHANNELS_DIR}/channel-1"),),
                 (context.subdir,),
                 specs_to_add=specs_to_add,
                 specs_to_remove=specs_to_remove,
             )
-            yield solver
 
 
 @contextmanager
@@ -612,21 +607,17 @@ def get_solver_2(tmpdir, specs_to_add=(), specs_to_remove=(), prefix_records=(),
     _alias_canonical_channel_name_cache_to_file_prefixed("channel-2")
     with patch.object(History, "get_requested_specs_map", return_value=spec_map):
         with env_var(
-            "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY",
-            "false",
-            stack_callback=conda_tests_ctxt_mgmt_def_pol,
-        ):
-            # We need CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY=false here again (it's also in
-            # get_index_r_*) to cover solver logics that need to load from disk instead of
-            # hitting the SubdirData cache
-            solver = context.plugin_manager.get_cached_solver_backend()(
+                    "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY",
+                    "false",
+                    stack_callback=conda_tests_ctxt_mgmt_def_pol,
+                ):
+            yield context.plugin_manager.get_cached_solver_backend()(
                 tmpdir,
                 (Channel(f"{EXPORTED_CHANNELS_DIR}/channel-2"),),
                 (context.subdir,),
                 specs_to_add=specs_to_add,
                 specs_to_remove=specs_to_remove,
             )
-            yield solver
 
 
 @contextmanager
@@ -641,21 +632,17 @@ def get_solver_4(tmpdir, specs_to_add=(), specs_to_remove=(), prefix_records=(),
     _alias_canonical_channel_name_cache_to_file_prefixed("channel-4")
     with patch.object(History, "get_requested_specs_map", return_value=spec_map):
         with env_var(
-            "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY",
-            "false",
-            stack_callback=conda_tests_ctxt_mgmt_def_pol,
-        ):
-            # We need CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY=false here again (it's also in
-            # get_index_r_*) to cover solver logics that need to load from disk instead of
-            # hitting the SubdirData cache
-            solver = context.plugin_manager.get_cached_solver_backend()(
+                    "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY",
+                    "false",
+                    stack_callback=conda_tests_ctxt_mgmt_def_pol,
+                ):
+            yield context.plugin_manager.get_cached_solver_backend()(
                 tmpdir,
                 (Channel(f"{EXPORTED_CHANNELS_DIR}/channel-4"),),
                 (context.subdir,),
                 specs_to_add=specs_to_add,
                 specs_to_remove=specs_to_remove,
             )
-            yield solver
 
 
 @contextmanager
@@ -670,21 +657,17 @@ def get_solver_5(tmpdir, specs_to_add=(), specs_to_remove=(), prefix_records=(),
     _alias_canonical_channel_name_cache_to_file_prefixed("channel-5")
     with patch.object(History, "get_requested_specs_map", return_value=spec_map):
         with env_var(
-            "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY",
-            "false",
-            stack_callback=conda_tests_ctxt_mgmt_def_pol,
-        ):
-            # We need CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY=false here again (it's also in
-            # get_index_r_*) to cover solver logics that need to load from disk instead of
-            # hitting the SubdirData cache
-            solver = context.plugin_manager.get_cached_solver_backend()(
+                    "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY",
+                    "false",
+                    stack_callback=conda_tests_ctxt_mgmt_def_pol,
+                ):
+            yield context.plugin_manager.get_cached_solver_backend()(
                 tmpdir,
                 (Channel(f"{EXPORTED_CHANNELS_DIR}/channel-5"),),
                 (context.subdir,),
                 specs_to_add=specs_to_add,
                 specs_to_remove=specs_to_remove,
             )
-            yield solver
 
 
 @contextmanager
@@ -703,14 +686,11 @@ def get_solver_aggregate_1(
     _alias_canonical_channel_name_cache_to_file_prefixed("channel-4")
     with patch.object(History, "get_requested_specs_map", return_value=spec_map):
         with env_var(
-            "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY",
-            "false",
-            stack_callback=conda_tests_ctxt_mgmt_def_pol,
-        ):
-            # We need CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY=false here again (it's also in
-            # get_index_r_*) to cover solver logics that need to load from disk instead of
-            # hitting the SubdirData cache
-            solver = context.plugin_manager.get_cached_solver_backend()(
+                    "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY",
+                    "false",
+                    stack_callback=conda_tests_ctxt_mgmt_def_pol,
+                ):
+            yield context.plugin_manager.get_cached_solver_backend()(
                 tmpdir,
                 (
                     Channel(f"{EXPORTED_CHANNELS_DIR}/channel-2"),
@@ -720,7 +700,6 @@ def get_solver_aggregate_1(
                 specs_to_add=specs_to_add,
                 specs_to_remove=specs_to_remove,
             )
-            yield solver
 
 
 @contextmanager
@@ -739,14 +718,11 @@ def get_solver_aggregate_2(
     _alias_canonical_channel_name_cache_to_file_prefixed("channel-2")
     with patch.object(History, "get_requested_specs_map", return_value=spec_map):
         with env_var(
-            "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY",
-            "false",
-            stack_callback=conda_tests_ctxt_mgmt_def_pol,
-        ):
-            # We need CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY=false here again (it's also in
-            # get_index_r_*) to cover solver logics that need to load from disk instead of
-            # hitting the SubdirData cache
-            solver = context.plugin_manager.get_cached_solver_backend()(
+                    "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY",
+                    "false",
+                    stack_callback=conda_tests_ctxt_mgmt_def_pol,
+                ):
+            yield context.plugin_manager.get_cached_solver_backend()(
                 tmpdir,
                 (
                     Channel(f"{EXPORTED_CHANNELS_DIR}/channel-4"),
@@ -756,7 +732,6 @@ def get_solver_aggregate_2(
                 specs_to_add=specs_to_add,
                 specs_to_remove=specs_to_remove,
             )
-            yield solver
 
 
 @contextmanager
@@ -773,21 +748,17 @@ def get_solver_must_unfreeze(
     _alias_canonical_channel_name_cache_to_file_prefixed("channel-freeze")
     with patch.object(History, "get_requested_specs_map", return_value=spec_map):
         with env_var(
-            "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY",
-            "false",
-            stack_callback=conda_tests_ctxt_mgmt_def_pol,
-        ):
-            # We need CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY=false here again (it's also in
-            # get_index_r_*) to cover solver logics that need to load from disk instead of
-            # hitting the SubdirData cache
-            solver = context.plugin_manager.get_cached_solver_backend()(
+                    "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY",
+                    "false",
+                    stack_callback=conda_tests_ctxt_mgmt_def_pol,
+                ):
+            yield context.plugin_manager.get_cached_solver_backend()(
                 tmpdir,
                 (Channel(f"{EXPORTED_CHANNELS_DIR}/channel-freeze"),),
                 (context.subdir,),
                 specs_to_add=specs_to_add,
                 specs_to_remove=specs_to_remove,
             )
-            yield solver
 
 
 @contextmanager
@@ -804,21 +775,17 @@ def get_solver_cuda(
     _alias_canonical_channel_name_cache_to_file_prefixed("channel-1")
     with patch.object(History, "get_requested_specs_map", return_value=spec_map):
         with env_var(
-            "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY",
-            "false",
-            stack_callback=conda_tests_ctxt_mgmt_def_pol,
-        ):
-            # We need CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY=false here again (it's also in
-            # get_index_r_*) to cover solver logics that need to load from disk instead of
-            # hitting the SubdirData cache
-            solver = context.plugin_manager.get_cached_solver_backend()(
+                    "CONDA_ADD_PIP_AS_PYTHON_DEPENDENCY",
+                    "false",
+                    stack_callback=conda_tests_ctxt_mgmt_def_pol,
+                ):
+            yield context.plugin_manager.get_cached_solver_backend()(
                 tmpdir,
                 (Channel(f"{EXPORTED_CHANNELS_DIR}/channel-1"),),
                 (context.subdir,),
                 specs_to_add=specs_to_add,
                 specs_to_remove=specs_to_remove,
             )
-            yield solver
 
 
 def convert_to_dist_str(solution):

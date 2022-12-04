@@ -78,7 +78,7 @@ def explicit(specs, prefix, verbose=False, force_extract=True, index_args=None, 
         # parse URL
         m = url_pat.match(spec)
         if m is None:
-            raise ParseError("Could not parse explicit URL: %s" % spec)
+            raise ParseError(f"Could not parse explicit URL: {spec}")
         url_p, fn, md5sum = m.group("url_p"), m.group("fn"), m.group("md5")
         url = join_url(url_p, fn)
         # url_p is everything but the tarball_basename and the md5sum
@@ -103,14 +103,13 @@ def explicit(specs, prefix, verbose=False, force_extract=True, index_args=None, 
         [spec, next(PackageCacheData.query_all(spec), None)] for spec in fetch_specs
     )
 
-    # Assert that every spec has a PackageCacheRecord
-    specs_with_missing_pcrecs = [str(spec) for spec, pcrec in specs_pcrecs if pcrec is None]
-    if specs_with_missing_pcrecs:
+    if specs_with_missing_pcrecs := [
+        str(spec) for spec, pcrec in specs_pcrecs if pcrec is None
+    ]:
         if len(specs_with_missing_pcrecs) == len(specs_pcrecs):
             raise AssertionError("No package cache records found")
-        else:
-            missing_precs_list = ", ".join(specs_with_missing_pcrecs)
-            raise AssertionError(f"Missing package cache records for: {missing_precs_list}")
+        missing_precs_list = ", ".join(specs_with_missing_pcrecs)
+        raise AssertionError(f"Missing package cache records for: {missing_precs_list}")
 
     precs_to_remove = []
     prefix_data = PrefixData(prefix)
@@ -118,8 +117,7 @@ def explicit(specs, prefix, verbose=False, force_extract=True, index_args=None, 
         new_spec = MatchSpec(spec, name=pcrec.name)
         specs_pcrecs[q][0] = new_spec
 
-        prec = prefix_data.get(pcrec.name, None)
-        if prec:
+        if prec := prefix_data.get(pcrec.name, None):
             # If we've already got matching specifications, then don't bother re-linking it
             if next(prefix_data.query(new_spec), None):
                 specs_pcrecs[q][0] = None
@@ -254,10 +252,10 @@ def clone_env(prefix1, prefix2, verbose=True, quiet=False, index_args=None):
             fh = sys.stderr if context.json else sys.stdout
             print("The following packages cannot be cloned out of the root environment:", file=fh)
             for prec in filter.values():
-                print(" - " + prec.dist_str(), file=fh)
+                print(f" - {prec.dist_str()}", file=fh)
         drecs = {prec for prec in PrefixData(prefix1).iter_records() if prec["name"] not in filter}
     else:
-        drecs = {prec for prec in PrefixData(prefix1).iter_records()}
+        drecs = set(PrefixData(prefix1).iter_records())
 
     # Resolve URLs for packages that do not have URLs
     index = {}
@@ -282,10 +280,7 @@ def clone_env(prefix1, prefix2, verbose=True, quiet=False, index_args=None):
         raise PackagesNotFoundError(notfound)
 
     # Assemble the URL and channel list
-    urls = {}
-    for prec in drecs:
-        urls[prec] = prec["url"]
-
+    urls = {prec: prec["url"] for prec in drecs}
     precs = tuple(PrefixGraph(urls).graph)
     urls = [urls[prec] for prec in precs]
 

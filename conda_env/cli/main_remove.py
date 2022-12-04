@@ -43,11 +43,18 @@ def configure_parser(sub_parsers):
 
 def execute(args, parser):
     import conda.cli.main_remove
-    args = vars(args)
-    args.update({
-        'all': True, 'channel': None, 'features': None,
-        'override_channels': None, 'use_local': None, 'use_cache': None,
-        'offline': None, 'force': True, 'pinned': None})
+    args = vars(args) | {
+        'all': True,
+        'channel': None,
+        'features': None,
+        'override_channels': None,
+        'use_local': None,
+        'use_cache': None,
+        'offline': None,
+        'force': True,
+        'pinned': None,
+    }
+
     args = Namespace(**args)
     from conda.base.context import context
     context.__init__(argparse_args=args)

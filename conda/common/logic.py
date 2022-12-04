@@ -71,9 +71,7 @@ class Clauses:
         raise ValueError(f"SAT variable out of bounds: {variable} (max_var: {self.m})")
 
     def _check_literal(self, literal):
-        if literal in {TRUE, FALSE}:
-            return literal
-        return self._check_variable(literal)
+        return literal if literal in {TRUE, FALSE} else self._check_variable(literal)
 
     def add_clause(self, clause):
         self._clauses.add_clause(map(self._check_variable, self._convert(clause)))
@@ -84,7 +82,7 @@ class Clauses:
 
     def name_var(self, m, name):
         self._check_literal(m)
-        nname = '!' + name
+        nname = f'!{name}'
         self.names[name] = m
         self.names[nname] = -m
         if m not in {TRUE, FALSE} and m not in self.indices:
@@ -189,10 +187,7 @@ class Clauses:
     def ExactlyOne(self, vals, polarity=None, name=None):
         vals = list(vals)
         nv = len(vals)
-        if nv < 2:
-            what = self.ExactlyOne_NSQ
-        else:
-            what = self.ExactlyOne_BDD
+        what = self.ExactlyOne_NSQ if nv < 2 else self.ExactlyOne_BDD
         return self._eval(what, (vals,), (), polarity, name)
 
     def LinearBound(self, equation, lo, hi, preprocess=True, polarity=None, name=None):

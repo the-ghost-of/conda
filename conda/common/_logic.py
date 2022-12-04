@@ -149,8 +149,7 @@ class _SatSolver:
         run_kwargs.update(kwargs)
         solver = self.setup(m, **run_kwargs)
         sat_solution = self.invoke(solver)
-        solution = self.process_solution(sat_solution)
-        return solution
+        return self.process_solution(sat_solution)
 
     def setup(self, m, **kwargs):
         """Create a solver instance, add the clauses to it, and return it."""
@@ -188,9 +187,7 @@ class _PycoSatSolver(_SatSolver):
         return sat_solution
 
     def process_solution(self, sat_solution):
-        if sat_solution in ("UNSAT", "UNKNOWN"):
-            return None
-        return sat_solution
+        return None if sat_solution in ("UNSAT", "UNKNOWN") else sat_solution
 
 
 class _PyCryptoSatSolver(_SatSolver):
@@ -224,19 +221,12 @@ class _PySatSolver(_SatSolver):
         return solver
 
     def invoke(self, solver):
-        if not solver.solve():
-            sat_solution = None
-        else:
-            sat_solution = solver.get_model()
+        sat_solution = solver.get_model() if solver.solve() else None
         solver.delete()
         return sat_solution
 
     def process_solution(self, sat_solution):
-        if sat_solution is None:
-            solution = None
-        else:
-            solution = sat_solution
-        return solution
+        return None if sat_solution is None else sat_solution
 
 
 _sat_solver_str_to_cls = {
@@ -476,9 +466,11 @@ class Clauses:
         return pval, nval
 
     def AtMostOne_NSQ(self, vals, polarity):
-        combos = []
-        for v1, v2 in combinations(map(self.Not, vals), 2):
-            combos.append(self.Or(v1, v2, polarity))
+        combos = [
+            self.Or(v1, v2, polarity)
+            for v1, v2 in combinations(map(self.Not, vals), 2)
+        ]
+
         return self.Combine(combos, polarity)
 
     def AtMostOne_BDD(self, vals, polarity=None):
@@ -521,7 +513,7 @@ class Clauses:
         #  => IF xN THEN l - cN <= S         <= u - cN
         #           ELSE l      <= S         <= u
         # we use memoization to prune common subexpressions
-        total = sum(c for c in coeffs[:nterms])
+        total = sum(coeffs[:nterms])
         target = (nterms-1, 0, total)
         call_stack = [target]
         ret = {}
@@ -576,7 +568,7 @@ class Clauses:
         else:
             nprune = 0
         # Tighten bounds
-        total = sum(c for c in coeffs[:nterms])
+        total = sum(coeffs[:nterms])
         if preprocess:
             lo = max([lo, 0])
             hi = min([hi, total])
@@ -594,8 +586,7 @@ class Clauses:
     def _run_sat(self, m, limit=0):
         if log.isEnabledFor(DEBUG):
             log.debug("Invoking SAT with clause count: %s", self.get_clause_count())
-        solution = self._sat_solver.run(m, limit=limit)
-        return solution
+        return self._sat_solver.run(m, limit=limit)
 
     def sat(self, additional=None, includeIf=False, limit=0):
         """
@@ -688,10 +679,7 @@ class Clauses:
 
             log.trace("Initial range (%d,%d)" % (lo, hi))
             while True:
-                if try0 is None:
-                    mid = (lo+hi) // 2
-                else:
-                    mid = try0
+                mid = (lo+hi) // 2 if try0 is None else try0
                 if peak:
                     prevent = tuple(a for c, a in zip(coeffs, lits) if c > mid)
                     require = tuple(a for c, a in zip(coeffs, lits) if lo <= c <= mid)

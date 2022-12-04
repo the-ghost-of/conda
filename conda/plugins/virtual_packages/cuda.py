@@ -42,10 +42,7 @@ def cuda_version():
         return None  # CUDA not available for other operating systems
 
     # open library
-    if system == "Windows":
-        dll = ctypes.windll
-    else:
-        dll = ctypes.cdll
+    dll = ctypes.windll if system == "Windows" else ctypes.cdll
     for lib_filename in lib_filenames:
         with suppress(Exception):
             libcuda = dll.LoadLibrary(lib_filename)

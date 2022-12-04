@@ -35,8 +35,7 @@ class BinstarSpec:
         self.quiet = False
 
     def can_handle(self):
-        result = self._can_handle()
-        return result
+        return self._can_handle()
 
     def _can_handle(self):
         """
@@ -116,9 +115,8 @@ class BinstarSpec:
             try:
                 self._package = self.binstar.package(self.username, self.packagename)
             except IndexError:
-                self.msg = "{} was not found on anaconda.org.\n"\
-                           "You may need to be logged in. Try running:\n"\
-                           "    anaconda login".format(self.name)
+                self.msg = f"{self.name} was not found on anaconda.org.\nYou may need to be logged in. Try running:\n    anaconda login"
+
         return self._package
 
     @property

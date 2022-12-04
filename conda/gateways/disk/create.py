@@ -353,7 +353,7 @@ def create_link(src, dst, link_type=LinkType.hardlink, force=False):
 
     if link_type == LinkType.hardlink:
         if isdir(src):
-            raise CondaError("Cannot hard link a directory. %s" % src)
+            raise CondaError(f"Cannot hard link a directory. {src}")
         try:
             log.trace("hard linking %s => %s", src, dst)
             link(src, dst)
@@ -376,7 +376,7 @@ def create_link(src, dst, link_type=LinkType.hardlink, force=False):
 def compile_multiple_pyc(python_exe_full_path, py_full_paths, pyc_full_paths, prefix, py_ver):
     py_full_paths = tuple(py_full_paths)
     pyc_full_paths = tuple(pyc_full_paths)
-    if len(py_full_paths) == 0:
+    if not py_full_paths:
         return []
 
     fd, filename = tempfile.mkstemp()
@@ -392,7 +392,7 @@ def compile_multiple_pyc(python_exe_full_path, py_full_paths, pyc_full_paths, pr
         #    -j 0 will do the compilation in parallel, with os.cpu_count() cores
         if int(py_ver[0]) >= 3 and int(py_ver.split('.')[1]) > 5:
             command.extend(["-j", "0"])
-        command[0:0] = [python_exe_full_path]
+        command[:0] = [python_exe_full_path]
         # command[0:0] = ['--cwd', prefix, '--dev', '-p', prefix, python_exe_full_path]
         log.trace(command)
         from conda.gateways.subprocess import any_subprocess
@@ -433,11 +433,10 @@ def create_package_cache_directory(pkgs_dir):
         touch(join(pkgs_dir, PACKAGE_CACHE_MAGIC_FILE), mkdir=True, sudo_safe=sudo_safe)
         touch(join(pkgs_dir, 'urls'), sudo_safe=sudo_safe)
     except OSError as e:
-        if e.errno in (EACCES, EPERM, EROFS):
-            log.trace("cannot create package cache directory '%s'", pkgs_dir)
-            return False
-        else:
+        if e.errno not in (EACCES, EPERM, EROFS):
             raise
+        log.trace("cannot create package cache directory '%s'", pkgs_dir)
+        return False
     return True
 
 
@@ -453,9 +452,8 @@ def create_envs_directory(envs_dir):
         sudo_safe = expand(envs_dir).startswith(expand('~'))
         touch(join(envs_dir, envs_dir_magic_file), mkdir=True, sudo_safe=sudo_safe)
     except OSError as e:
-        if e.errno in (EACCES, EPERM, EROFS):
-            log.trace("cannot create envs directory '%s'", envs_dir)
-            return False
-        else:
+        if e.errno not in (EACCES, EPERM, EROFS):
             raise
+        log.trace("cannot create envs directory '%s'", envs_dir)
+        return False
     return True

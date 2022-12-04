@@ -27,27 +27,26 @@ IndexRecord = PackageRecord  # for conda-build backward compat
 class DistType(EntityType):
 
     def __call__(cls, *args, **kwargs):
-        if len(args) == 1 and not kwargs:
-            value = args[0]
-            if value in Dist._cache_:
-                return Dist._cache_[value]
-            elif isinstance(value, Dist):
-                dist = value
-            elif isinstance(value, PackageRecord):
-                dist = Dist.from_string(value.fn, channel_override=value.channel.canonical_name)
-            elif hasattr(value, 'dist') and isinstance(value.dist, Dist):
-                dist = value.dist
-            elif isinstance(value, PackageInfo):
-                dist = Dist.from_string(value.repodata_record.fn,
-                                        channel_override=value.channel.canonical_name)
-            elif isinstance(value, Channel):
-                dist = Dist.from_url(value.url())
-            else:
-                dist = Dist.from_string(value)
-            Dist._cache_[value] = dist
-            return dist
-        else:
+        if len(args) != 1 or kwargs:
             return super().__call__(*args, **kwargs)
+        value = args[0]
+        if value in Dist._cache_:
+            return Dist._cache_[value]
+        elif isinstance(value, Dist):
+            dist = value
+        elif isinstance(value, PackageRecord):
+            dist = Dist.from_string(value.fn, channel_override=value.channel.canonical_name)
+        elif hasattr(value, 'dist') and isinstance(value.dist, Dist):
+            dist = value.dist
+        elif isinstance(value, PackageInfo):
+            dist = Dist.from_string(value.repodata_record.fn,
+                                    channel_override=value.channel.canonical_name)
+        elif isinstance(value, Channel):
+            dist = Dist.from_url(value.url())
+        else:
+            dist = Dist.from_string(value)
+        Dist._cache_[value] = dist
+        return dist
 
 
 def strip_extension(original_dist):
@@ -146,10 +145,7 @@ class Dist(Entity, metaclass=DistType):
         return bool(self.base_url and self.platform)
 
     def to_filename(self, extension=None):
-        if self.is_feature_package:
-            return self.dist_name
-        else:
-            return self.dist_name + self.fmt
+        return self.dist_name if self.is_feature_package else self.dist_name + self.fmt
 
     def to_matchspec(self):
         return ' '.join(self.quad[:3])
@@ -223,7 +219,7 @@ class Dist(Entity, metaclass=DistType):
             return DistDetails(name, version, build_string, build_number, dist_name, fmt)
 
         except:
-            raise CondaError("dist_name is not a valid conda package: %s" % original_string)
+            raise CondaError(f"dist_name is not a valid conda package: {original_string}")
 
     @classmethod
     def from_url(cls, url):

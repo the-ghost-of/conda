@@ -81,9 +81,12 @@ def download(
                     checksum_builder and checksum_builder.update(chunk)
                     size_builder += len(chunk)
 
-                    if content_length and 0 <= streamed_bytes <= content_length:
-                        if progress_update_callback:
-                            progress_update_callback(streamed_bytes / content_length)
+                    if (
+                        content_length
+                        and 0 <= streamed_bytes <= content_length
+                        and progress_update_callback
+                    ):
+                        progress_update_callback(streamed_bytes / content_length)
 
             if content_length and streamed_bytes != content_length:
                 # TODO: needs to be a more-specific error type
@@ -101,7 +104,7 @@ def download(
         except OSError as e:
             if e.errno == 104:
                 # Connection reset by peer
-                log.debug("%s, trying again" % e)
+                log.debug(f"{e}, trying again")
             raise
 
         if checksum:
@@ -122,17 +125,16 @@ def download(
         raise ProxyError()  # see #3962
 
     except InvalidSchema as e:
-        if 'SOCKS' in str(e):
-            message = dals("""
+        if 'SOCKS' not in str(e):
+            raise
+
+        message = dals("""
                 Requests has identified that your current working environment is configured
                 to use a SOCKS proxy, but pysocks is not installed.  To proceed, remove your
                 proxy configuration, run `conda install pysocks`, and then you can re-enable
                 your proxy configuration.
                 """)
-            raise CondaDependencyError(message)
-        else:
-            raise
-
+        raise CondaDependencyError(message)
     except SSLError as e:
         # SSLError: either an invalid certificate or OpenSSL is unavailable
         try:
@@ -186,16 +188,15 @@ def download_text(url):
     except RequestsProxyError:
         raise ProxyError()  # see #3962
     except InvalidSchema as e:
-        if 'SOCKS' in str(e):
-            message = dals("""
+        if 'SOCKS' not in str(e):
+            raise
+        message = dals("""
                 Requests has identified that your current working environment is configured
                 to use a SOCKS proxy, but pysocks is not installed.  To proceed, remove your
                 proxy configuration, run `conda install pysocks`, and then you can re-enable
                 your proxy configuration.
                 """)
-            raise CondaDependencyError(message)
-        else:
-            raise
+        raise CondaDependencyError(message)
     except (ConnectionError, HTTPError, SSLError) as e:
         status_code = getattr(e.response, 'status_code', None)
         if status_code == 404:

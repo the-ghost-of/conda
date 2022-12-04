@@ -32,9 +32,7 @@ def Utf8NamedTemporaryFile(
 ):
     if "CONDA_TEST_SAVE_TEMPS" in os.environ:
         delete = False
-    encoding = None
-    if "b" not in mode:
-        encoding = "utf-8"
+    encoding = "utf-8" if "b" not in mode else None
     return NamedTemporaryFile(
         mode=mode,
         buffering=buffering,

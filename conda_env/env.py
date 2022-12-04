@@ -191,7 +191,7 @@ class Dependencies(OrderedDict):
         if 'pip' in self:
             if not self['pip']:
                 del self['pip']
-            if not any(MatchSpec(s).name == 'pip' for s in self['conda']):
+            if all(MatchSpec(s).name != 'pip' for s in self['conda']):
                 self['conda'].append('pip')
 
     # TODO only append when it's not already present

@@ -80,9 +80,7 @@ class FileLock:
 
         for _ in range(self.retries + 1):
 
-            # search, whether there is process already locked on this file
-            glob_result = glob(self.lock_file_glob_str)
-            if glob_result:
+            if glob_result := glob(self.lock_file_glob_str):
                 log.debug(LOCKSTR.format(glob_result))
                 log.debug("Sleeping for %s seconds", sleep_time)
 
