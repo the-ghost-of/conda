@@ -26,16 +26,15 @@ def set_root_level(level=INFO):
 
 def attach_stderr(level=INFO):
     has_stderr_handler = any(handler.name == 'stderr' for handler in root_log.handlers)
-    if not has_stderr_handler:
-        handler = StreamHandler(stderr)
-        handler.name = 'stderr'
-        if level is not None:
-            handler.setLevel(level)
-        handler.setFormatter(DEBUG_FORMATTER if level == DEBUG else INFO_FORMATTER)
-        root_log.addHandler(handler)
-        return True
-    else:
+    if has_stderr_handler:
         return False
+    handler = StreamHandler(stderr)
+    handler.name = 'stderr'
+    if level is not None:
+        handler.setLevel(level)
+    handler.setFormatter(DEBUG_FORMATTER if level == DEBUG else INFO_FORMATTER)
+    root_log.addHandler(handler)
+    return True
 
 
 def detach_stderr():
@@ -52,10 +51,7 @@ def initialize_logging(level=INFO):
 
 class DumpEncoder(JSONEncoder):
     def default(self, obj):
-        if hasattr(obj, 'dump'):
-            return obj.dump()
-        # Let the base class default method raise the TypeError
-        return super().default(obj)
+        return obj.dump() if hasattr(obj, 'dump') else super().default(obj)
 
 
 _DUMPS = DumpEncoder(indent=2, ensure_ascii=False, sort_keys=True).encode
@@ -67,7 +63,7 @@ def jsondumps(obj):
 
 def fullname(obj):
     try:
-        return obj.__module__ + "." + obj.__class__.__name__
+        return f"{obj.__module__}.{obj.__class__.__name__}"
     except AttributeError:
         return obj.__class__.__name__
 

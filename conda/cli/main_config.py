@@ -40,18 +40,16 @@ def format_dict(d):
     for k, v in d.items():
         if isinstance(v, Mapping):
             if v:
-                lines.append("%s:" % k)
-                lines.append(pretty_map(v))
+                lines.extend((f"{k}:", pretty_map(v)))
             else:
                 lines.append("%s: {}" % k)
         elif isiterable(v):
             if v:
-                lines.append("%s:" % k)
-                lines.append(pretty_list(v))
+                lines.extend((f"{k}:", pretty_list(v)))
             else:
-                lines.append("%s: []" % k)
+                lines.append(f"{k}: []")
         else:
-            lines.append("{}: {}".format(k, v if v is not None else "None"))
+            lines.append(f'{k}: {v if v is not None else "None"}')
     return lines
 
 
@@ -64,27 +62,26 @@ def parameter_description_builder(name):
     default_value_str = json.dumps(details['default_value'], cls=EntityEncoder)
 
     if details["parameter_type"] == "primitive":
-        builder.append("{} ({})".format(name, ", ".join(sorted({et for et in element_types}))))
+        builder.append(f'{name} ({", ".join(sorted(set(element_types)))})')
     else:
         builder.append(
-            "{} ({}: {})".format(
-                name, details["parameter_type"], ", ".join(sorted({et for et in element_types}))
-            )
+            f'{name} ({details["parameter_type"]}: {", ".join(sorted(set(element_types)))})'
         )
 
+
     if aliases:
-        builder.append("  aliases: %s" % ', '.join(aliases))
+        builder.append(f"  aliases: {', '.join(aliases)}")
     if string_delimiter:
         builder.append("  env var string delimiter: '%s'" % string_delimiter)
 
-    builder.extend('  ' + line for line in wrap(details['description'], 70))
+    builder.extend(f'  {line}' for line in wrap(details['description'], 70))
 
     builder.append('')
-    builder = ['# ' + line for line in builder]
+    builder = [f'# {line}' for line in builder]
 
     builder.extend(yaml_round_trip_dump({name: json.loads(default_value_str)}).strip().split('\n'))
 
-    builder = ['# ' + line for line in builder]
+    builder = [f'# {line}' for line in builder]
     builder.append('')
     return builder
 
@@ -95,10 +92,15 @@ def describe_all_parameters():
     for category, parameter_names in context.category_map.items():
         if category in skip_categories:
             continue
-        builder.append("# ######################################################")
-        builder.append(f"# ## {category:^48} ##")
-        builder.append("# ######################################################")
-        builder.append("")
+        builder.extend(
+            (
+                "# ######################################################",
+                f"# ## {category:^48} ##",
+                "# ######################################################",
+                "",
+            )
+        )
+
         builder.extend(concat(parameter_description_builder(name) for name in parameter_names))
         builder.append("")
     return "\n".join(builder)
@@ -108,7 +110,7 @@ def print_config_item(key, value):
     stdout_write = getLogger("conda.stdout").info
     if isinstance(value, (dict,)):
         for k, v in value.items():
-            print_config_item(key + "." + k, v)
+            print_config_item(f"{key}.{k}", v)
     elif isinstance(value, (bool, int, str)):
         stdout_write(" ".join(("--set", key, str(value))))
     elif isinstance(value, (list, tuple)):
@@ -141,7 +143,7 @@ def execute_config(args, parser):
         else:
             lines = []
             for source, reprs in context.collect_all().items():
-                lines.append("==> %s <==" % source)
+                lines.append(f"==> {source} <==")
                 lines.extend(format_dict(reprs))
                 lines.append('')
             stdout_write('\n'.join(lines))
@@ -155,7 +157,10 @@ def execute_config(args, parser):
             if not_params:
                 from ..exceptions import ArgumentError
                 from ..common.io import dashlist
-                raise ArgumentError("Invalid configuration parameters: %s" % dashlist(not_params))
+                raise ArgumentError(
+                    f"Invalid configuration parameters: {dashlist(not_params)}"
+                )
+
         else:
             paramater_names = context.list_parameters()
 
@@ -190,7 +195,10 @@ def execute_config(args, parser):
             if not_params:
                 from ..exceptions import ArgumentError
                 from ..common.io import dashlist
-                raise ArgumentError("Invalid configuration parameters: %s" % dashlist(not_params))
+                raise ArgumentError(
+                    f"Invalid configuration parameters: {dashlist(not_params)}"
+                )
+
             if context.json:
                 stdout_write(json.dumps(
                     [context.describe_parameter(name) for name in paramater_names],
@@ -277,7 +285,7 @@ def execute_config(args, parser):
             key_parts = key.split(".")
 
             if key_parts[0] not in all_parameters:
-                message = "unknown key %s" % key_parts[0]
+                message = f"unknown key {key_parts[0]}"
                 if not context.json:
                     stderr_write(message)
                 else:
@@ -324,13 +332,12 @@ def execute_config(args, parser):
             else:
                 from ..exceptions import CondaValueError
                 raise CondaValueError("Key '%s' is not a known sequence parameter." % key)
-            if not (isinstance(arglist, Sequence) and not
-                    isinstance(arglist, str)):
+            if not isinstance(arglist, Sequence) or isinstance(arglist, str):
                 from ..exceptions import CouldntParseError
                 bad = rc_config[key].__class__.__name__
                 raise CouldntParseError(f"key {key!r} should be a list, not {bad}.")
             if item in arglist:
-                message_key = key + "." + subkey if subkey is not None else key
+                message_key = f"{key}.{subkey}" if subkey is not None else key
                 # Right now, all list keys should not contain duplicates
                 message = "Warning: '{}' already in '{}' list, moving to the {}".format(
                     item, message_key, "top" if prepend else "bottom")

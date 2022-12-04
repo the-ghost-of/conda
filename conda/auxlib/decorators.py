@@ -58,14 +58,13 @@ def memoize(func):
     @wraps(func)
     def _memoized_func(*args, **kwargs):
         key = (args, tuple(sorted(kwargs.items())))
-        if key in func._result_cache:  # pylint: disable-msg=W0212
+        if key in func._result_cache:
             return func._result_cache[key]  # pylint: disable-msg=W0212
-        else:
-            result = func(*args, **kwargs)
-            if isinstance(result, GeneratorType) or not isinstance(result, Hashable):
-                raise TypeError("Can't memoize a generator or non-hashable object!")
-            func._result_cache[key] = result  # pylint: disable-msg=W0212
-            return result
+        result = func(*args, **kwargs)
+        if isinstance(result, GeneratorType) or not isinstance(result, Hashable):
+            raise TypeError("Can't memoize a generator or non-hashable object!")
+        func._result_cache[key] = result  # pylint: disable-msg=W0212
+        return result
 
     return _memoized_func
 
@@ -140,17 +139,16 @@ def memoizemethod(method):
         key = (method.__name__, args, tuple(sorted(kwargs.items())))
         if key in memoized_results:
             return memoized_results[key]
-        else:
-            try:
-                result = method(self, *args, **kwargs)
-            except KeyError as e:
-                if '__wrapped__' in str(e):
-                    result = None  # is this the right thing to do?  happened during py3 conversion
-                else:
-                    raise
-            if isinstance(result, GeneratorType) or not isinstance(result, Hashable):
-                raise TypeError("Can't memoize a generator or non-hashable object!")
-            return memoized_results.setdefault(key, result)
+        try:
+            result = method(self, *args, **kwargs)
+        except KeyError as e:
+            if '__wrapped__' in str(e):
+                result = None  # is this the right thing to do?  happened during py3 conversion
+            else:
+                raise
+        if isinstance(result, GeneratorType) or not isinstance(result, Hashable):
+            raise TypeError("Can't memoize a generator or non-hashable object!")
+        return memoized_results.setdefault(key, result)
 
     return _wrapper
 
@@ -231,7 +229,7 @@ def clear_memoized_methods(obj, *method_names):
 
     property_dict = obj._cache_
     for prop in method_names:
-        inner_attname = '__%s' % prop
+        inner_attname = f'__{prop}'
         if inner_attname in property_dict:
             del property_dict[inner_attname]
 
@@ -263,7 +261,7 @@ def memoizedproperty(func):
     >>> foo1.foo
     2
     """
-    inner_attname = '__%s' % func.__name__
+    inner_attname = f'__{func.__name__}'
 
     def new_fget(self):
         if not hasattr(self, '_cache_'):
@@ -334,9 +332,7 @@ class classproperty:  # pylint: disable=C0103
         return self.__get.__get__(obj, type_)()
 
     def __set__(self, obj, value):
-        if obj is None:
-            return self
-        return self.__set.__get__(obj)(value)
+        return self if obj is None else self.__set.__get__(obj)(value)
 
     def setter(self, setter):
         return self.__class__(self.__get, setter)

@@ -39,8 +39,10 @@ def compare_packages(active_pkgs, specification_pkgs):
         if name in active_pkgs:
             if not pkg_spec.match(active_pkgs[name]):
                 ok = False
-                output.append("{} found but mismatch. Specification pkg: {}, Running pkg: {}"
-                              .format(name, pkg, _to_str(active_pkgs[name])))
+                output.append(
+                    f"{name} found but mismatch. Specification pkg: {pkg}, Running pkg: {_to_str(active_pkgs[name])}"
+                )
+
         else:
             ok = False
             output.append(f"{name} not found")
@@ -75,7 +77,7 @@ def execute(args, parser):
     active_pkgs = dict(map(_get_name_tuple, get_packages(prefix)))
     specification_pkgs = []
     if 'conda' in env.dependencies:
-        specification_pkgs = specification_pkgs + env.dependencies['conda']
+        specification_pkgs += env.dependencies['conda']
     if 'pip' in env.dependencies:
         specification_pkgs = specification_pkgs + env.dependencies['pip']
 

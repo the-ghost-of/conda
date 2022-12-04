@@ -31,7 +31,7 @@ from ...models.records import PathData, PathDataV1, PathsData, PrefixRecord
 
 log = getLogger(__name__)
 
-listdir = lambda d: list(entry.name for entry in os.scandir(d))  # noqa
+listdir = lambda d: [entry.name for entry in os.scandir(d)]
 
 
 def yield_lines(path):
@@ -52,9 +52,7 @@ def yield_lines(path):
                     continue
                 yield line
     except OSError as e:
-        if e.errno == ENOENT:
-            pass
-        else:
+        if e.errno != ENOENT:
             raise
 
 
@@ -137,17 +135,16 @@ def read_package_metadata(extracted_package_directory):
     path = first(_paths(), key=isfile)
     if not path:
         return None
-    else:
-        with open(path) as f:
-            data = json.loads(f.read())
-            if data.get('package_metadata_version') != 1:
-                raise CondaUpgradeError(dals("""
+    with open(path) as f:
+        data = json.loads(f.read())
+        if data.get('package_metadata_version') != 1:
+            raise CondaUpgradeError(dals("""
                 The current version of conda is too old to install this package. (This version
                 only supports link.json schema version 1.)  Please update conda to install
                 this package.
                 """))
-        package_metadata = PackageMetadata(**data)
-        return package_metadata
+    package_metadata = PackageMetadata(**data)
+    return package_metadata
 
 
 def read_paths_json(extracted_package_directory):
@@ -214,7 +211,7 @@ def read_has_prefix(path):
         elif len(parts) == 3:
             return ParseResult(parts[0], FileMode(parts[1]), parts[2])
         else:
-            raise CondaVerificationError("Invalid has_prefix file at path: %s" % path)
+            raise CondaVerificationError(f"Invalid has_prefix file at path: {path}")
 
     parsed_lines = (parse_line(line) for line in yield_lines(path))
     return {pr.filepath: (pr.placeholder, pr.filemode) for pr in parsed_lines}

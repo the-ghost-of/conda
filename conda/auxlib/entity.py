@@ -586,9 +586,7 @@ class ListField(Field):
         if val is None:
             return None
         elif isinstance(val, str):
-            raise ValidationError(
-                "Attempted to assign a string to ListField {}" "".format(self.name)
-            )
+            raise ValidationError(f"Attempted to assign a string to ListField {self.name}")
         elif isiterable(val):
             et = self._element_type
             if isinstance(et, type) and issubclass(et, Entity):
@@ -597,7 +595,7 @@ class ListField(Field):
                 return make_immutable(val) if self.immutable else self._type(val)
         else:
             raise ValidationError(
-                val, msg="Cannot assign a non-iterable value to " "{}".format(self.name)
+                val, msg=f"Cannot assign a non-iterable value to {self.name}"
             )
 
     def unbox(self, instance, instance_type, val):
@@ -648,12 +646,13 @@ class MapField(Field):
             val = make_immutable(val)
             if not isinstance(val, Mapping):
                 raise ValidationError(
-                    val, msg="Cannot assign a non-iterable value to " "{}".format(self.name)
+                    val, msg=f"Cannot assign a non-iterable value to {self.name}"
                 )
+
             return val
         else:
             raise ValidationError(
-                val, msg="Cannot assign a non-iterable value to " "{}".format(self.name)
+                val, msg=f"Cannot assign a non-iterable value to {self.name}"
             )
 
 
@@ -671,22 +670,21 @@ class ComposableField(Field):
             return None
         if isinstance(val, self._type):
             return val
+        # assuming val is a dict now
+        try:
+            # if there is a key named 'self', have to rename it
+            if hasattr(val, 'pop'):
+                val['slf'] = val.pop('self')
+        except KeyError:
+            pass  # no key of 'self', so no worries
+        if isinstance(val, self._type):
+            return val if isinstance(val, self._type) else self._type(**val)
+        elif isinstance(val, Mapping):
+            return self._type(**val)
+        elif isinstance(val, Sequence) and not isinstance(val, str):
+            return self._type(*val)
         else:
-            # assuming val is a dict now
-            try:
-                # if there is a key named 'self', have to rename it
-                if hasattr(val, 'pop'):
-                    val['slf'] = val.pop('self')
-            except KeyError:
-                pass  # no key of 'self', so no worries
-            if isinstance(val, self._type):
-                return val if isinstance(val, self._type) else self._type(**val)
-            elif isinstance(val, Mapping):
-                return self._type(**val)
-            elif isinstance(val, Sequence) and not isinstance(val, str):
-                return self._type(*val)
-            else:
-                return self._type(val)
+            return self._type(val)
 
     def dump(self, instance, instance_type, val):
         return None if val is None else val.dump()
@@ -702,7 +700,7 @@ class EntityType(type):
             # NameError: global name 'Entity' is not defined
             return ()
 
-    def __new__(mcs, name, bases, dct):
+    def __new__(cls, name, bases, dct):
         # if we're about to mask a field that's already been created with something that's
         #  not a field, then assign it to an alternate variable name
         non_field_keys = (
@@ -710,8 +708,7 @@ class EntityType(type):
             for key, value in dct.items()
             if not isinstance(value, Field) and not key.startswith("__")
         )
-        entity_subclasses = EntityType.__get_entity_subclasses(bases)
-        if entity_subclasses:
+        if entity_subclasses := EntityType.__get_entity_subclasses(bases):
             keys_to_override = [key for key in non_field_keys
                                 if any(isinstance(base.__dict__.get(key), Field)
                                        for base in entity_subclasses)]
@@ -719,7 +716,7 @@ class EntityType(type):
         else:
             dct[KEY_OVERRIDES_MAP] = {}
 
-        return super().__new__(mcs, name, bases, dct)
+        return super().__new__(cls, name, bases, dct)
 
     def __init__(cls, name, bases, attr):
         super().__init__(name, bases, attr)
@@ -744,8 +741,8 @@ class EntityType(type):
         return instance
 
     @property
-    def fields(cls):
-        return cls.__fields__.keys()
+    def fields(self):
+        return self.__fields__.keys()
 
 
 class Entity(metaclass=EntityType):
@@ -766,9 +763,9 @@ class Entity(metaclass=EntityType):
                 elif field.required and field.default is NULL:
                     raise ValidationError(
                         key,
-                        msg="{} requires a {} field. Instantiated with "
-                        "{}".format(self.__class__.__name__, key, kwargs),
+                        msg=f"{self.__class__.__name__} requires a {key} field. Instantiated with {kwargs}",
                     )
+
             except ValidationError:
                 if kwargs[key] is not None or field.required:
                     raise
@@ -804,8 +801,7 @@ class Entity(metaclass=EntityType):
                 (name for name, field in self.__fields__.items() if field.required),
             )
         except TypeError as e:
-            if str(e) == "reduce() of empty sequence with no initial value":
-                pass
+            pass
         except AttributeError as e:
             raise ValidationError(None, msg=e)
 
@@ -909,9 +905,7 @@ class DictSafeMixin:
         if value is None:
             return False
         field = self.__fields__[item]
-        if isinstance(field, (MapField, ListField)):
-            return len(value) > 0
-        return True
+        return len(value) > 0 if isinstance(field, (MapField, ListField)) else True
 
     def __iter__(self):
         for key in self.__fields__:

@@ -55,9 +55,7 @@ def is_notice_response_cache_expired(channel_notice_response: ChannelNoticeRespo
         """
         If there is no "expired_at" field present assume it is expired
         """
-        if expired_at is None:
-            return True
-        return expired_at < now
+        return True if expired_at is None else expired_at < now
 
     return any(
         is_channel_notice_expired(chn.expired_at) for chn in channel_notice_response.notices

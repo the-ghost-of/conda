@@ -40,9 +40,12 @@ def unix_path_to_win(path, root_prefix=""):
         )
 
     translation = re.sub(path_re, _translation, path)
-    translation = re.sub(":([a-zA-Z]):\\\\",
-                         lambda match: ";" + match.group(0)[1] + ":\\",
-                         translation)
+    translation = re.sub(
+        ":([a-zA-Z]):\\\\",
+        lambda match: f";{match.group(0)[1]}" + ":\\",
+        translation,
+    )
+
     return translation
 
 
@@ -228,10 +231,10 @@ def hashsum_file(path, mode='md5'):  # pragma: no cover
     h = hashlib.new(mode)
     with open(path, 'rb') as fi:
         while True:
-            chunk = fi.read(262144)  # process chunks of 256KB
-            if not chunk:
+            if chunk := fi.read(262144):
+                h.update(chunk)
+            else:
                 break
-            h.update(chunk)
     return h.hexdigest()
 
 
@@ -337,7 +340,10 @@ def massage_arguments(arguments, errors='assert'):
     if not isiterable(arguments):
         arguments = (arguments,)
 
-    assert not any([isiterable(arg) for arg in arguments]), "Individual arguments must not be iterable"  # NOQA
+    assert not any(
+        isiterable(arg) for arg in arguments
+    ), "Individual arguments must not be iterable"
+
     arguments = list(arguments)
 
     return arguments

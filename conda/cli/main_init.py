@@ -17,11 +17,7 @@ def execute(args, parser):
     if args.install:
         return install(context.conda_prefix)
 
-    if args.all:
-        selected_shells = COMPATIBLE_SHELLS
-    else:
-        selected_shells = tuple(args.shells)
-
+    selected_shells = COMPATIBLE_SHELLS if args.all else tuple(args.shells)
     if args.dev:
         if len(selected_shells) != 1:
             raise ArgumentError("--dev can only handle one shell at a time right now")

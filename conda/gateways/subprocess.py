@@ -54,8 +54,10 @@ def any_subprocess(args, prefix, env=None, cwd=None):
         if 'CONDA_TEST_SAVE_TEMPS' not in os.environ:
             rm_rf(script_caller)
         else:
-            log.warning('CONDA_TEST_SAVE_TEMPS :: retaining pip run_script {}'.format(
-                script_caller))
+            log.warning(
+                f'CONDA_TEST_SAVE_TEMPS :: retaining pip run_script {script_caller}'
+            )
+
     if hasattr(stdout, 'decode'):
         stdout = stdout.decode('utf-8', errors='replace')
     if hasattr(stderr, 'decode'):

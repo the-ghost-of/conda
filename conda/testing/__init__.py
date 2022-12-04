@@ -36,62 +36,62 @@ def conda_ensure_sys_python_is_base_env_python():
     # C:\opt\conda\envs\py27
     # So lets just sys.exit on that.
 
-    if 'CONDA_PYTHON_EXE' in os.environ:
-        if os.path.normpath(os.environ['CONDA_PYTHON_EXE']) != sys.executable:
-            print("ERROR :: Running tests from a non-base Python interpreter. "
-                  " Tests requires installing menuinst and that causes stderr "
-                  " output when activated.", file=sys.stderr)
-            sys.exit(-1)
+    if (
+        'CONDA_PYTHON_EXE' in os.environ
+        and os.path.normpath(os.environ['CONDA_PYTHON_EXE']) != sys.executable
+    ):
+        print("ERROR :: Running tests from a non-base Python interpreter. "
+              " Tests requires installing menuinst and that causes stderr "
+              " output when activated.", file=sys.stderr)
+        sys.exit(-1)
 
 
 def conda_move_to_front_of_PATH():
-    if 'CONDA_PREFIX' in os.environ:
-        from conda.activate import (PosixActivator, CmdExeActivator)
-        if os.name == 'nt':
-            activator_cls = CmdExeActivator
+    if 'CONDA_PREFIX' not in os.environ:
+        return
+    from conda.activate import (PosixActivator, CmdExeActivator)
+    activator_cls = CmdExeActivator if os.name == 'nt' else PosixActivator
+    activator = activator_cls()
+    # But why not just use _replace_prefix_in_path? => because moving
+    # the entries to the front of PATH is the goal here, not swapping
+    # x for x (which would be pointless anyway).
+    p = None
+    # It might be nice to have a parameterised fixture with choices of:
+    # 'System default PATH',
+    # 'IDE default PATH',
+    # 'Fully activated conda',
+    # 'PATHly activated conda'
+    # This will do for now => Note, if you have conda activated multiple
+    # times it could mask some test failures but _remove_prefix_from_path
+    # cannot be used multiple times; it will only remove *one* conda
+    # prefix from the *original* value of PATH, calling it N times will
+    # just return the same value every time, even if you update PATH.
+    p = activator._remove_prefix_from_path(os.environ['CONDA_PREFIX'])
+
+    # Replace any non sys.prefix condabin with sys.prefix condabin
+    new_p = []
+    found_condabin = False
+    for pe in p:
+        if pe.endswith('condabin'):
+            if not found_condabin:
+                found_condabin = True
+                if join(sys.prefix, 'condabin') != pe:
+                    condabin_path = join(sys.prefix, 'condabin')
+                    print(f"Incorrect condabin, swapping {pe} to {condabin_path}")
+                    new_p.append(condabin_path)
+                else:
+                    new_p.append(pe)
         else:
-            activator_cls = PosixActivator
-        activator = activator_cls()
-        # But why not just use _replace_prefix_in_path? => because moving
-        # the entries to the front of PATH is the goal here, not swapping
-        # x for x (which would be pointless anyway).
-        p = None
-        # It might be nice to have a parameterised fixture with choices of:
-        # 'System default PATH',
-        # 'IDE default PATH',
-        # 'Fully activated conda',
-        # 'PATHly activated conda'
-        # This will do for now => Note, if you have conda activated multiple
-        # times it could mask some test failures but _remove_prefix_from_path
-        # cannot be used multiple times; it will only remove *one* conda
-        # prefix from the *original* value of PATH, calling it N times will
-        # just return the same value every time, even if you update PATH.
-        p = activator._remove_prefix_from_path(os.environ['CONDA_PREFIX'])
+            new_p.append(pe)
 
-        # Replace any non sys.prefix condabin with sys.prefix condabin
-        new_p = []
-        found_condabin = False
-        for pe in p:
-            if pe.endswith('condabin'):
-                if not found_condabin:
-                    found_condabin = True
-                    if join(sys.prefix, 'condabin') != pe:
-                        condabin_path = join(sys.prefix, 'condabin')
-                        print(f"Incorrect condabin, swapping {pe} to {condabin_path}")
-                        new_p.append(condabin_path)
-                    else:
-                        new_p.append(pe)
-            else:
-                new_p.append(pe)
-
-        new_path = os.pathsep.join(new_p)
-        new_path = encode_for_env_var(new_path)
-        os.environ['PATH'] = new_path
-        activator = activator_cls()
-        p = activator._add_prefix_to_path(os.environ['CONDA_PREFIX'])
-        new_path = os.pathsep.join(p)
-        new_path = encode_for_env_var(new_path)
-        os.environ['PATH'] = new_path
+    new_path = os.pathsep.join(new_p)
+    new_path = encode_for_env_var(new_path)
+    os.environ['PATH'] = new_path
+    activator = activator_cls()
+    p = activator._add_prefix_to_path(os.environ['CONDA_PREFIX'])
+    new_path = os.pathsep.join(p)
+    new_path = encode_for_env_var(new_path)
+    os.environ['PATH'] = new_path
 
 
 def conda_check_versions_aligned():
@@ -115,7 +115,7 @@ def conda_check_versions_aligned():
     for pe in os.environ.get('PATH', '').split(os.pathsep):
         if isfile(join(pe, git_exe)):
             try:
-                cmd = join(pe, git_exe) + ' describe --tags --long'
+                cmd = f'{join(pe, git_exe)} describe --tags --long'
                 version_from_git = check_output(cmd).decode('utf-8').split('\n')[0]
                 from conda.auxlib.packaging import _get_version_from_git_tag
                 version_from_git = _get_version_from_git_tag(version_from_git)
@@ -126,7 +126,9 @@ def conda_check_versions_aligned():
         print("WARNING :: Could not check versions.")
 
     if version_from_git and version_from_git != version_from_file:
-        print("WARNING :: conda/.version ({}) and git describe ({}) "
-              "disagree, rewriting .version".format(version_from_git, version_from_file))
+        print(
+            f"WARNING :: conda/.version ({version_from_git}) and git describe ({version_from_file}) disagree, rewriting .version"
+        )
+
         with open(version_file, 'w') as fh:
             fh.write(version_from_git)

@@ -172,7 +172,7 @@ class ParameterFlag(Enum):
     bottom = "bottom"
 
     def __str__(self):
-        return "%s" % self.value
+        return f"{self.value}"
 
     @classmethod
     def from_name(cls, name):
@@ -270,16 +270,14 @@ class ArgParseRawParameter(RawParameter):
     source = 'cmd_line'
 
     def value(self, parameter_obj):
-        # note: this assumes ArgParseRawParameter will only have flat configuration of either
-        # primitive or sequential type
-        if isiterable(self._raw_value):
-            children_values = []
-            for i in range(len(self._raw_value)):
-                children_values.append(ArgParseRawParameter(
-                    self.source, self.key, self._raw_value[i]))
-            return tuple(children_values)
-        else:
+        if not isiterable(self._raw_value):
             return make_immutable(self._raw_value)
+        children_values = [
+            ArgParseRawParameter(self.source, self.key, self._raw_value[i])
+            for i in range(len(self._raw_value))
+        ]
+
+        return tuple(children_values)
 
     def keyflag(self):
         return None
@@ -302,19 +300,24 @@ class YamlRawParameter(RawParameter):
         if isinstance(self._raw_value, CommentedSeq):
             value_comments = self._get_yaml_list_comments(self._raw_value)
             self._value_flags = tuple(ParameterFlag.from_string(s) for s in value_comments)
-            children_values = []
-            for i in range(len(self._raw_value)):
-                children_values.append(YamlRawParameter(
-                    self.source, self.key, self._raw_value[i], value_comments[i]))
+            children_values = [
+                YamlRawParameter(
+                    self.source, self.key, self._raw_value[i], value_comments[i]
+                )
+                for i in range(len(self._raw_value))
+            ]
+
             self._value = tuple(children_values)
         elif isinstance(self._raw_value, CommentedMap):
             value_comments = self._get_yaml_map_comments(self._raw_value)
             self._value_flags = {
                 k: ParameterFlag.from_string(v) for k, v in value_comments.items() if v is not None
             }
-            children_values = {}
-            for k, v in self._raw_value.items():
-                children_values[k] = YamlRawParameter(self.source, self.key, v, value_comments[k])
+            children_values = {
+                k: YamlRawParameter(self.source, self.key, v, value_comments[k])
+                for k, v in self._raw_value.items()
+            }
+
             self._value = frozendict(children_values)
         elif isinstance(self._raw_value, primitive_types):
             self._value_flags = None
@@ -409,15 +412,18 @@ class DefaultValueRawParameter(RawParameter):
         super().__init__(source, key, raw_value)
 
         if isinstance(self._raw_value, Mapping):
-            children_values = {}
-            for k, v in self._raw_value.items():
-                children_values[k] = DefaultValueRawParameter(self.source, self.key, v)
+            children_values = {
+                k: DefaultValueRawParameter(self.source, self.key, v)
+                for k, v in self._raw_value.items()
+            }
+
             self._value = frozendict(children_values)
         elif isiterable(self._raw_value):
-            children_values = []
-            for i in range(len(self._raw_value)):
-                children_values.append(DefaultValueRawParameter(
-                    self.source, self.key, self._raw_value[i]))
+            children_values = [
+                DefaultValueRawParameter(self.source, self.key, self._raw_value[i])
+                for i in range(len(self._raw_value))
+            ]
+
             self._value = tuple(children_values)
         elif isinstance(self._raw_value, ConfigurationObject):
             self._value = self._raw_value
@@ -485,7 +491,7 @@ def load_file_configs(search_path):
     load_paths = (_loader[st_mode](path)
                   for path, st_mode in zip(expanded_paths, stat_paths)
                   if st_mode is not None)
-    raw_data = odict(kv for kv in chain.from_iterable(load_paths))
+    raw_data = odict(iter(chain.from_iterable(load_paths)))
     return raw_data
 
 
@@ -515,9 +521,7 @@ class LoadedParameter(metaclass=ABCMeta):
         self._validation = validation
 
     def __eq__(self, other):
-        if type(other) is type(self):
-            return self.value == other.value
-        return False
+        return self.value == other.value if type(other) is type(self) else False
 
     def __hash__(self):
         return hash(self.value)
@@ -647,9 +651,7 @@ class PrimitiveLoadedParameter(LoadedParameter):
         super().__init__(name, value, key_flag, value_flags, validation)
 
     def __eq__(self, other):
-        if type(other) is type(self):
-            return self.value == other.value
-        return False
+        return self.value == other.value if type(other) is type(self) else False
 
     def __hash__(self):
         return hash(self.value)
@@ -1196,7 +1198,7 @@ class ParameterLoader:
         # this is an explicit method, and not a descriptor/setter
         # it's meant to be called by the Configuration metaclass
         self._name = name
-        _names = frozenset(x for x in chain(self.aliases, (name, )))
+        _names = frozenset(chain(self.aliases, (name, )))
         self._names = _names
         return name
 
@@ -1367,16 +1369,12 @@ class Configuration(metaclass=ConfigurationType):
                 except CustomValidationError as e:
                     validation_errors.append(e)
                 else:
-                    collected_errors = loaded_parameter.collect_errors(
-                        self, typed_value, match.source)
-                    if collected_errors:
+                    if collected_errors := loaded_parameter.collect_errors(
+                        self, typed_value, match.source
+                    ):
                         validation_errors.extend(collected_errors)
                     else:
                         typed_values[match.key] = typed_value
-            else:
-                # this situation will happen if there is a multikey_error and none of the
-                # matched keys is the primary key
-                pass
         return typed_values, validation_errors
 
     def validate_all(self):
@@ -1413,7 +1411,7 @@ class Configuration(metaclass=ConfigurationType):
     def describe_parameter(self, parameter_name):
         # TODO, in Parameter base class, rename element_type to value_type
         if parameter_name not in self.parameter_names:
-            parameter_name = '_' + parameter_name
+            parameter_name = f'_{parameter_name}'
         parameter_loader = self.__class__.__dict__[parameter_name]
         parameter = parameter_loader.type
         assert isinstance(parameter, Parameter)
@@ -1453,7 +1451,7 @@ class Configuration(metaclass=ConfigurationType):
     def typify_parameter(self, parameter_name, value, source):
         # return a tuple with correct parameter name and typed-value
         if parameter_name not in self.parameter_names:
-            parameter_name = '_' + parameter_name
+            parameter_name = f'_{parameter_name}'
         parameter_loader = self.__class__.__dict__[parameter_name]
         parameter = parameter_loader.type
         assert isinstance(parameter, Parameter)

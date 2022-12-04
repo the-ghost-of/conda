@@ -18,8 +18,7 @@ def _get_attr(obj, attr_name, aliases=()):
                 return getattr(obj, alias)
             except AttributeError:
                 continue
-        else:
-            raise
+        raise
 
 
 def find_or_none(key, search_maps, aliases=(), _map_index=0):

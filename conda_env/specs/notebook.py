@@ -39,8 +39,7 @@ class NotebookSpec:
 
     @property
     def environment(self):
-        if 'remote' in self.nb['metadata']['environment']:
-            spec = BinstarSpec('darth/deathstar')
-            return spec.environment
-        else:
+        if 'remote' not in self.nb['metadata']['environment']:
             return Environment(**self.nb['metadata']['environment'])
+        spec = BinstarSpec('darth/deathstar')
+        return spec.environment

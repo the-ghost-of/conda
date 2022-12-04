@@ -131,7 +131,7 @@ def rm_pkgs(
         for fn, exception in warnings:
             print(exception)
 
-    if not any(pkgs for pkgs in pkg_sizes.values()):
+    if not any(pkg_sizes.values()):
         if verbose:
             print(f"There are no unused {name} to remove.")
         return
@@ -183,12 +183,11 @@ def find_tempfiles(paths: Iterable[str]) -> List[str]:
     for path in sorted(set(paths or [sys.prefix])):
         # tempfiles are files in path
         for root, _, files in walk(path):
-            for file in files:
-                # tempfiles also end in .c~ or .trash
-                if not file.endswith(CONDA_TEMP_EXTENSIONS):
-                    continue
-
-                tempfiles.append(join(root, file))
+            tempfiles.extend(
+                join(root, file)
+                for file in files
+                if file.endswith(CONDA_TEMP_EXTENSIONS)
+            )
 
     return tempfiles
 

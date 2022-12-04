@@ -11,9 +11,9 @@ from operator import methodcaller
 import sys
 from tempfile import mkdtemp
 
-on_win = bool(sys.platform == "win32")
-on_mac = bool(sys.platform == "darwin")
-on_linux = bool(sys.platform == "linux")
+on_win = sys.platform == "win32"
+on_mac = sys.platform == "darwin"
+on_linux = sys.platform == "linux"
 
 FILESYSTEM_ENCODING = sys.getfilesystemencoding()
 
@@ -135,16 +135,12 @@ def ensure_unicode(value):
 def ensure_fs_path_encoding(value):
     try:
         return value.encode(FILESYSTEM_ENCODING)
-    except AttributeError:
-        return value
-    except UnicodeEncodeError:
+    except (AttributeError, UnicodeEncodeError):
         return value
 
 
 def ensure_utf8_encoding(value):
     try:
         return value.encode('utf-8')
-    except AttributeError:
-        return value
-    except UnicodeEncodeError:
+    except (AttributeError, UnicodeEncodeError):
         return value

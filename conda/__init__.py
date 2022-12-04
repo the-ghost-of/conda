@@ -66,14 +66,17 @@ class CondaError(Exception):
         try:
             return str(self.message % self._kwargs)
         except Exception:
-            debug_message = "\n".join((
-                "class: " + self.__class__.__name__,
-                "message:",
-                self.message,
-                "kwargs:",
-                str(self._kwargs),
-                "",
-            ))
+            debug_message = "\n".join(
+                (
+                    f"class: {self.__class__.__name__}",
+                    "message:",
+                    self.message,
+                    "kwargs:",
+                    str(self._kwargs),
+                    "",
+                )
+            )
+
             print(debug_message, file=sys.stderr)
             raise
 
@@ -106,8 +109,7 @@ class CondaMultiError(CondaError):
                 # by using e.__repr__() instead of repr(e)
                 # https://github.com/scrapy/cssselect/issues/34
                 errs.append(e.__repr__())
-        res = '\n'.join(errs)
-        return res
+        return '\n'.join(errs)
 
     def __str__(self):
         return "\n".join(str(e) for e in self.errors) + "\n"

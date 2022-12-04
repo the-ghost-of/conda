@@ -40,7 +40,7 @@ def check_prefix(prefix, json=False):
     if exists(prefix):
         if isdir(prefix) and 'conda-meta' not in tuple(entry.name for entry in os.scandir(prefix)):
             return None
-        error = "prefix already exists: %s" % prefix
+        error = f"prefix already exists: {prefix}"
 
     if error:
         raise CondaValueError(error, json)
@@ -63,8 +63,8 @@ def clone(src_arg, dst_prefix, json=False, quiet=False, index_args=None):
         src_prefix = locate_prefix_by_name(src_arg)
 
     if not json:
-        print("Source:      %s" % src_prefix)
-        print("Destination: %s" % dst_prefix)
+        print(f"Source:      {src_prefix}")
+        print(f"Destination: {dst_prefix}")
 
     actions, untracked_files = clone_env(src_prefix, dst_prefix,
                                          verbose=not json,

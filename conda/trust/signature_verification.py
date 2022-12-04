@@ -153,7 +153,6 @@ class _SignatureVerification:
         except Exception as err:
             # TODO: more error handling
             raise
-            log.error(err)
         else:
             # New key manager metadata checks out
             trusted = untrusted

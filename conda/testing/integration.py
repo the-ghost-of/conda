@@ -7,6 +7,7 @@ but were refactored here so downstream projects can benefit from
 them too.
 """
 
+
 from contextlib import contextmanager
 from functools import lru_cache
 import json
@@ -64,9 +65,9 @@ BIN_DIRECTORY = "Scripts" if on_win else "bin"
 UNICODE_CHARACTERS = "ōγђ家固한áêñßôç"
 # UNICODE_CHARACTERS_RESTRICTED = u"áêñßôç"
 UNICODE_CHARACTERS_RESTRICTED = "abcdef"
-which_or_where = "which" if not on_win else "where"
-cp_or_copy = "cp" if not on_win else "copy"
-env_or_set = "env" if not on_win else "set"
+which_or_where = "where" if on_win else "which"
+cp_or_copy = "copy" if on_win else "cp"
+env_or_set = "set" if on_win else "env"
 
 # UNICODE_CHARACTERS = u"12345678abcdef"
 # UNICODE_CHARACTERS_RESTRICTED = UNICODE_CHARACTERS
@@ -87,9 +88,7 @@ def running_a_python_capable_of_unicode_subprocessing():
     name = None
     # try:
     # UNICODE_CHARACTERS + os.sep +
-    with Utf8NamedTemporaryFile(
-        mode="w", suffix=UNICODE_CHARACTERS + ".bat", delete=False
-    ) as batch_file:
+    with Utf8NamedTemporaryFile(mode="w", suffix=f"{UNICODE_CHARACTERS}.bat", delete=False) as batch_file:
         batch_file.write("@echo Hello World\n")
         batch_file.write("@exit 0\n")
         name = batch_file.name
@@ -97,9 +96,7 @@ def running_a_python_capable_of_unicode_subprocessing():
         try:
             out = check_output(name, cwd=dirname(name), stderr=None, shell=False)
             out = out.decode("utf-8") if hasattr(out, "decode") else out
-            if out.startswith("Hello World"):
-                return True
-            return False
+            return bool(out.startswith("Hello World"))
         except Exception:
             return False
         finally:
@@ -144,19 +141,13 @@ def _get_temp_prefix(name=None, use_restricted_unicode=False):
         link(src, dst)
     except OSError:
         print(
-            "\nWARNING :: You are testing `conda` with `tmpdir`:-\n           {}\n"
-            "           not on the same FS as `sys.prefix`:\n           {}\n"
-            "           this will be slow and unlike the majority of end-user installs.\n"
-            "           Please pass `--basetemp=<somewhere-else>` instead.".format(
-                tmpdir, sys.prefix
-            )
+            f"\nWARNING :: You are testing `conda` with `tmpdir`:-\n           {tmpdir}\n           not on the same FS as `sys.prefix`:\n           {sys.prefix}\n           this will be slow and unlike the majority of end-user installs.\n           Please pass `--basetemp=<somewhere-else>` instead."
         )
+
     try:
         rm_rf(dst)
     except Exception as e:
         print(e)
-        pass
-
     return prefix
 
 
@@ -236,7 +227,7 @@ def run_command(command, prefix, *arguments, **kwargs):
         Commands.REMOVE,
         Commands.RUN,
     )
-    dev = kwargs.get("dev", True if command_defaults_to_dev else False)
+    dev = kwargs.get("dev", command_defaults_to_dev)
     debug = kwargs.get("debug_wrapper_scripts", False)
 
     p = generate_parser()
@@ -272,7 +263,7 @@ def run_command(command, prefix, *arguments, **kwargs):
     args = p.parse_args(arguments)
     context._set_argparse_args(args)
     init_loggers(context)
-    cap_args = () if not kwargs.get("no_capture") else (None, None)
+    cap_args = (None, None) if kwargs.get("no_capture") else ()
     # list2cmdline is not exact, but it is only informational.
     print("\n\nEXECUTING COMMAND >>> $ conda %s\n\n" % " ".join(arguments), file=sys.stderr)
     with stderr_log_level(TEST_LOG_LEVEL, "conda"), stderr_log_level(TEST_LOG_LEVEL, "requests"):
@@ -310,8 +301,7 @@ def make_temp_env(*packages, **kwargs):
     prefix = kwargs.pop("prefix", None) or _get_temp_prefix(
         name=name, use_restricted_unicode=use_restricted_unicode
     )
-    clean_prefix = kwargs.pop("clean_prefix", None)
-    if clean_prefix:
+    if clean_prefix := kwargs.pop("clean_prefix", None):
         if os.path.exists(prefix):
             rm_rf(prefix)
     if not isdir(prefix):
@@ -422,14 +412,14 @@ def package_is_installed(prefix, spec):
     if not is_installed and "::" in spec:
         channel, pkg = spec.split("::", 1)
         escaped_channel = escape_channel_url(channel)
-        escaped_spec = escaped_channel + "::" + pkg
+        escaped_spec = f"{escaped_channel}::{pkg}"
         is_installed = _package_is_installed(prefix, escaped_spec)
 
         # Workaround for https://github.com/mamba-org/mamba/issues/1324
         if not is_installed and channel.startswith("file:"):
             components = channel.split("/")
             lowercase_channel = "/".join(components[:-1] + [components[-1].lower()])
-            spec = lowercase_channel + "::" + pkg
+            spec = f"{lowercase_channel}::{pkg}"
             is_installed = _package_is_installed(prefix, spec)
 
     return is_installed
@@ -440,8 +430,9 @@ def _package_is_installed(prefix, spec):
     prefix_recs = tuple(PrefixData(prefix).query(spec))
     if len(prefix_recs) > 1:
         raise AssertionError(
-            "Multiple packages installed.%s" % (dashlist(prec.dist_str() for prec in prefix_recs))
+            f"Multiple packages installed.{dashlist(prec.dist_str() for prec in prefix_recs)}"
         )
+
     return bool(len(prefix_recs))
 
 
@@ -449,8 +440,14 @@ def get_conda_list_tuple(prefix, package_name):
     stdout, stderr, _ = run_command(Commands.LIST, prefix)
     stdout_lines = stdout.split("\n")
     package_line = next(
-        (line for line in stdout_lines if line.lower().startswith(package_name + " ")), None
+        (
+            line
+            for line in stdout_lines
+            if line.lower().startswith(f"{package_name} ")
+        ),
+        None,
     )
+
     return package_line.split()
 
 

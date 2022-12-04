@@ -116,7 +116,7 @@ class IndexedSet(MutableSet):
     :class:`list` and :class:`set` APIs as possible.
     """
     def __init__(self, other=None):
-        self.item_index_map = dict()
+        self.item_index_map = {}
         self.item_list = []
         self.dead_indices = []
         self._compactions = 0
@@ -158,7 +158,7 @@ class IndexedSet(MutableSet):
             num_dead = 1
             while items[-(num_dead + 1)] is _MISSING:
                 num_dead += 1
-            if ded and ded[-1][1] == len(items):
+            if ded[-1][1] == len(items):
                 del ded[-1]
             del items[-num_dead:]
 
@@ -267,29 +267,20 @@ class IndexedSet(MutableSet):
     def isdisjoint(self, other):
         "isdisjoint(other) -> return True if no overlap with other"
         iim = self.item_index_map
-        for k in other:
-            if k in iim:
-                return False
-        return True
+        return all(k not in iim for k in other)
 
     def issubset(self, other):
         "issubset(other) -> return True if other contains this set"
         if len(other) < len(self):
             return False
-        for k in self.item_index_map:
-            if k not in other:
-                return False
-        return True
+        return all(k in other for k in self.item_index_map)
 
     def issuperset(self, other):
         "issuperset(other) -> return True if set contains other"
         if len(other) > len(self):
             return False
         iim = self.item_index_map
-        for k in other:
-            if k not in iim:
-                return False
-        return True
+        return all(k in iim for k in other)
 
     def union(self, *others):
         "union(*others) -> return a new set containing this set and others"
@@ -429,21 +420,18 @@ class IndexedSet(MutableSet):
         len_self = len(item_index_map)
         if index is None or index == -1 or index == len_self - 1:
             ret = self.item_list.pop()
-            del item_index_map[ret]
         else:
             real_index = self._get_real_index(index)
             ret = self.item_list[real_index]
             self.item_list[real_index] = _MISSING
-            del item_index_map[ret]
             self._add_dead(real_index)
+        del item_index_map[ret]
         self._cull()
         return ret
 
     def count(self, val):
         "count(val) -> count number of instances of value (0 or 1)"
-        if val in self.item_index_map:
-            return 1
-        return 0
+        return 1 if val in self.item_index_map else 0
 
     def reverse(self):
         "reverse() -> reverse the contents of the set in-place"
@@ -617,7 +605,7 @@ class _ComplementSet(object):
 
     def __contains__(self, item):
         if self._included is None:
-            return not item in self._excluded
+            return item not in self._excluded
         return item in self._included
 
     def add(self, item):
@@ -649,15 +637,16 @@ class _ComplementSet(object):
         if inc is NotImplemented:
             return NotImplemented
         if self._included is None:
-            if exc is None:  # - +
-                return _ComplementSet(included=inc - self._excluded)
-            else:  # - -
-                return _ComplementSet(excluded=self._excluded.union(other._excluded))
-        else:
-            if inc is None:  # + -
-                return _ComplementSet(included=exc - self._included)
-            else:  # + +
-                return _ComplementSet(included=self._included.intersection(inc))
+            return (
+                _ComplementSet(included=inc - self._excluded)
+                if exc is None
+                else _ComplementSet(excluded=self._excluded.union(other._excluded))
+            )
+
+        if inc is None:  # + -
+            return _ComplementSet(included=exc - self._included)
+        else:  # + +
+            return _ComplementSet(included=self._included.intersection(inc))
 
     __rand__ = __and__
 
@@ -670,12 +659,11 @@ class _ComplementSet(object):
                 self._excluded = inc - self._excluded  # TODO: do this in place?
             else:  # - -
                 self._excluded |= exc
-        else:
-            if inc is None:  # + -
-                self._included -= exc
-                self._included, self._excluded = None, self._included
-            else:  # + +
-                self._included &= inc
+        elif inc is None:  # + -
+            self._included -= exc
+            self._included, self._excluded = None, self._included
+        else:  # + +
+            self._included &= inc
         return self
 
     def union(self, other):
@@ -689,15 +677,16 @@ class _ComplementSet(object):
         if inc is NotImplemented:
             return NotImplemented
         if self._included is None:
-            if exc is None:  # - +
-                return _ComplementSet(excluded=self._excluded - inc)
-            else:  # - -
-                return _ComplementSet(excluded=self._excluded.intersection(exc))
-        else:
-            if inc is None:  # + -
-                return _ComplementSet(excluded=exc - self._included)
-            else:  # + +
-                return _ComplementSet(included=self._included.union(inc))
+            return (
+                _ComplementSet(excluded=self._excluded - inc)
+                if exc is None
+                else _ComplementSet(excluded=self._excluded.intersection(exc))
+            )
+
+        if inc is None:  # + -
+            return _ComplementSet(excluded=exc - self._included)
+        else:  # + +
+            return _ComplementSet(included=self._included.union(inc))
 
     __ror__ = __or__
 
@@ -710,11 +699,10 @@ class _ComplementSet(object):
                 self._excluded -= inc
             else:  # - -
                 self._excluded &= exc
-        else:
-            if inc is None:  # + -
-                self._included, self._excluded = None, exc - self._included   # TODO: do this in place?
-            else:  # + +
-                self._included |= inc
+        elif inc is None:  # + -
+            self._included, self._excluded = None, exc - self._included   # TODO: do this in place?
+        else:  # + +
+            self._included |= inc
         return self
 
     def update(self, items):
@@ -729,12 +717,11 @@ class _ComplementSet(object):
                 self._excluded &= inc
             else:  # - -
                 self._excluded.discard(exc)
-        else:
-            if inc is None:  # + -
-                self._included &= exc
-                self._included, self._excluded = None, self._excluded
-            else:  # + +
-                self._included.update(inc)
+        elif inc is None:  # + -
+            self._included &= exc
+            self._included, self._excluded = None, self._excluded
+        else:  # + +
+            self._included.update(inc)
 
     def discard(self, items):
         if type(items) in (set, frozenset):
@@ -748,11 +735,10 @@ class _ComplementSet(object):
                 self._excluded.update(inc)
             else:  # - -
                 self._included, self._excluded = exc - self._excluded, None
-        else:
-            if inc is None:  # + -
-                self._included &= exc
-            else:  # + +
-                self._included.discard(inc)
+        elif inc is None:  # + -
+            self._included &= exc
+        else:  # + +
+            self._included.discard(inc)
 
     def symmetric_difference(self, other):
         try:
@@ -764,18 +750,19 @@ class _ComplementSet(object):
         inc, exc = _norm_args_notimplemented(other)
         if inc is NotImplemented:
             return NotImplemented
-        if inc is NotImplemented:
-            return NotImplemented
         if self._included is None:
-            if exc is None:  # - +
-                return _ComplementSet(excluded=self._excluded - inc)
-            else:  # - -
-                return _ComplementSet(included=self._excluded.symmetric_difference(exc))
-        else:
-            if inc is None:  # + -
-                return _ComplementSet(excluded=exc - self._included)
-            else:  # + +
-                return _ComplementSet(included=self._included.symmetric_difference(inc))
+            return (
+                _ComplementSet(excluded=self._excluded - inc)
+                if exc is None
+                else _ComplementSet(
+                    included=self._excluded.symmetric_difference(exc)
+                )
+            )
+
+        if inc is None:  # + -
+            return _ComplementSet(excluded=exc - self._included)
+        else:  # + +
+            return _ComplementSet(included=self._included.symmetric_difference(inc))
 
     __rxor__ = __xor__
 
@@ -787,27 +774,22 @@ class _ComplementSet(object):
             else:  # - -
                 self._excluded.symmetric_difference_update(exc)
                 self._included, self._excluded = self._excluded, None
-        else:
-            if inc is None:  # + -
-                self._included |= exc
-                self._included, self._excluded = None, self._included
-            else:  # + +
-                self._included.symmetric_difference_update(inc)
+        elif inc is None:  # + -
+            self._included |= exc
+            self._included, self._excluded = None, self._included
+        else:  # + +
+            self._included.symmetric_difference_update(inc)
 
     def isdisjoint(self, other):
         inc, exc = _norm_args_typeerror(other)
         if inc is NotImplemented:
             return NotImplemented
         if self._included is None:
-            if exc is None:  # - +
-                return inc.issubset(self._excluded)
-            else:  # - -
-                return False
-        else:
-            if inc is None:  # + -
-                return self._included.issubset(exc)
-            else:  # + +
-                return self._included.isdisjoint(inc)
+            return inc.issubset(self._excluded) if exc is None else False
+        if inc is None:  # + -
+            return self._included.issubset(exc)
+        else:  # + +
+            return self._included.isdisjoint(inc)
 
     def issubset(self, other):
         '''everything missing from other is also missing from self'''
@@ -820,35 +802,21 @@ class _ComplementSet(object):
         inc, exc = _norm_args_notimplemented(other)
         if inc is NotImplemented:
             return NotImplemented
-        if inc is NotImplemented:
-            return NotImplemented
         if self._included is None:
-            if exc is None:  # - +
-                return False
-            else:  # - -
-                return self._excluded.issupserset(exc)
-        else:
-            if inc is None:  # + -
-                return self._included.isdisjoint(exc)
-            else:  # + +
-                return self._included.issubset(inc)
+            return False if exc is None else self._excluded.issupserset(exc)
+        if inc is None:  # + -
+            return self._included.isdisjoint(exc)
+        else:  # + +
+            return self._included.issubset(inc)
 
     def __lt__(self, other):
         inc, exc = _norm_args_notimplemented(other)
         if inc is NotImplemented:
             return NotImplemented
-        if inc is NotImplemented:
-            return NotImplemented
         if self._included is None:
-            if exc is None:  # - +
-                return False
-            else:  # - -
-                return self._excluded > exc
+            return False if exc is None else self._excluded > exc
         else:
-            if inc is None:  # + -
-                return self._included.isdisjoint(exc)
-            else:  # + +
-                return self._included < inc
+            return self._included.isdisjoint(exc) if inc is None else self._included < inc
 
     def issuperset(self, other):
         '''everything missing from self is also missing from super'''
@@ -862,30 +830,26 @@ class _ComplementSet(object):
         if inc is NotImplemented:
             return NotImplemented
         if self._included is None:
-            if exc is None:  # - +
-                return not self._excluded.intersection(inc)
-            else:  # - -
-                return self._excluded.issubset(exc)
-        else:
-            if inc is None:  # + -
-                return False
-            else:  # + +
-                return self._included.issupserset(inc)
+            return (
+                not self._excluded.intersection(inc)
+                if exc is None
+                else self._excluded.issubset(exc)
+            )
+
+        return False if inc is None else self._included.issupserset(inc)
 
     def __gt__(self, other):
         inc, exc = _norm_args_notimplemented(other)
         if inc is NotImplemented:
             return NotImplemented
         if self._included is None:
-            if exc is None:  # - +
-                return not self._excluded.intersection(inc)
-            else:  # - -
-                return self._excluded < exc
-        else:
-            if inc is None:  # + -
-                return False
-            else:  # + +
-                return self._included > inc
+            return (
+                not self._excluded.intersection(inc)
+                if exc is None
+                else self._excluded < exc
+            )
+
+        return False if inc is None else self._included > inc
 
     def difference(self, other):
         try:
@@ -898,31 +862,32 @@ class _ComplementSet(object):
         if inc is NotImplemented:
             return NotImplemented
         if self._included is None:
-            if exc is None:  # - +
-                return _ComplementSet(excluded=self._excluded | inc)
-            else:  # - -
-                return _ComplementSet(included=exc - self._excluded)
-        else:
-            if inc is None:  # + -
-                return _ComplementSet(included=self._included & exc)
-            else:  # + +
-                return _ComplementSet(included=self._included.difference(inc))
+            return (
+                _ComplementSet(excluded=self._excluded | inc)
+                if exc is None
+                else _ComplementSet(included=exc - self._excluded)
+            )
+
+        if inc is None:  # + -
+            return _ComplementSet(included=self._included & exc)
+        else:  # + +
+            return _ComplementSet(included=self._included.difference(inc))
 
     def __rsub__(self, other):
         inc, exc = _norm_args_notimplemented(other)
         if inc is NotImplemented:
             return NotImplemented
-        # rsub, so the expression being evaluated is "other - self"
         if self._included is None:
-            if exc is None:  # - +
-                return _ComplementSet(included=inc & self._excluded)
-            else:  # - -
-                return _ComplementSet(included=self._excluded - exc)
-        else:
-            if inc is None:  # + -
-                return _ComplementSet(excluded=exc | self._included)
-            else:  # + +
-                return _ComplementSet(included=inc.difference(self._included))
+            return (
+                _ComplementSet(included=inc & self._excluded)
+                if exc is None
+                else _ComplementSet(included=self._excluded - exc)
+            )
+
+        if inc is None:  # + -
+            return _ComplementSet(excluded=exc | self._included)
+        else:  # + +
+            return _ComplementSet(included=inc.difference(self._included))
 
     def difference_update(self, other):
         try:
@@ -939,11 +904,10 @@ class _ComplementSet(object):
                 self._excluded |= inc
             else:  # - -
                 self._included, self._excluded = exc - self._excluded, None
-        else:
-            if inc is None:  # + -
-                self._included &= exc
-            else:  # + +
-                self._included.difference_update(inc)
+        elif inc is None:  # + -
+            self._included &= exc
+        else:  # + +
+            self._included.difference_update(inc)
         return self
 
     def __eq__(self, other):
@@ -967,8 +931,6 @@ class _ComplementSet(object):
         raise NotImplementedError('complemented sets have undefined contents')
 
     def __bool__(self):
-        if self._included is not None:
-            return bool(self._included)
-        return True
+        return bool(self._included) if self._included is not None else True
 
     __nonzero__ = __bool__  # py2 compat

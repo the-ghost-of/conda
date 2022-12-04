@@ -154,8 +154,7 @@ class _Activator:
         )
 
     def hook(self, auto_activate_base=None):
-        builder = []
-        builder.append(self._hook_preamble())
+        builder = [self._hook_preamble()]
         with open(self.hook_source_path) as fsrc:
             builder.append(fsrc.read())
         if auto_activate_base is None and context.auto_activate_base or auto_activate_base:
@@ -212,7 +211,7 @@ class _Activator:
         help_flags = ("-h", "--help", "/?")
         non_help_args = tuple(arg for arg in arguments if arg not in help_flags)
         help_requested = len(arguments) != len(non_help_args)
-        remainder_args = list(arg for arg in non_help_args if arg and arg != command)
+        remainder_args = [arg for arg in non_help_args if arg and arg != command]
 
         if not command:
             raise_invalid_command_error()
@@ -252,7 +251,7 @@ class _Activator:
             if stack_idx >= 0 and no_stack_idx >= 0:
                 from .exceptions import ArgumentError
 
-                raise ArgumentError("cannot specify both --stack and --no-stack to " + command)
+                raise ArgumentError(f"cannot specify both --stack and --no-stack to {command}")
             if stack_idx >= 0:
                 self.stack = True
                 del remainder_args[stack_idx]
@@ -538,11 +537,8 @@ class _Activator:
             "C:\\Windows\\System32\\Wbem;"
             "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\",
         }
-        path = self.environ.get(
-            "PATH", clean_paths[sys.platform] if sys.platform in clean_paths else "/usr/bin"
-        )
-        path_split = path.split(os.pathsep)
-        return path_split
+        path = self.environ.get("PATH", clean_paths.get(sys.platform, "/usr/bin"))
+        return path.split(os.pathsep)
 
     def _get_path_dirs(self, prefix, extra_library_bin=False):
         if on_win:  # pragma: unix no cover
@@ -551,9 +547,7 @@ class _Activator:
             yield self.sep.join((prefix, "Library", "usr", "bin"))
             yield self.sep.join((prefix, "Library", "bin"))
             yield self.sep.join((prefix, "Scripts"))
-            yield self.sep.join((prefix, "bin"))
-        else:
-            yield self.sep.join((prefix, "bin"))
+        yield self.sep.join((prefix, "bin"))
 
     def _add_prefix_to_path(self, prefix, starting_path_dirs=None):
         prefix = self.path_conversion(prefix)
@@ -571,7 +565,7 @@ class _Activator:
             condabin_dir = self.path_conversion(join(context.conda_prefix, "condabin"))
             path_list.insert(0, condabin_dir)
 
-        path_list[0:0] = list(self.path_conversion(self._get_path_dirs(prefix)))
+        path_list[:0] = list(self.path_conversion(self._get_path_dirs(prefix)))
         return tuple(path_list)
 
     def _remove_prefix_from_path(self, prefix, starting_path_dirs=None):
@@ -632,49 +626,46 @@ class _Activator:
         return basename(prefix) if basename(dirname(prefix)) == "envs" else prefix
 
     def _prompt_modifier(self, prefix, conda_default_env):
-        if context.changeps1:
-            # Get current environment and prompt stack
-            env_stack = []
-            prompt_stack = []
-            old_shlvl = int(self.environ.get("CONDA_SHLVL", "0").rstrip())
-            for i in range(1, old_shlvl + 1):
-                if i == old_shlvl:
-                    env_i = self._default_env(self.environ.get("CONDA_PREFIX", ""))
-                else:
-                    env_i = self._default_env(self.environ.get(f"CONDA_PREFIX_{i}", "").rstrip())
-                stacked_i = bool(self.environ.get(f"CONDA_STACKED_{i}", "").rstrip())
-                env_stack.append(env_i)
-                if not stacked_i:
-                    prompt_stack = prompt_stack[0:-1]
-                prompt_stack.append(env_i)
-
-            # Modify prompt stack according to pending operation
-            deactivate = getattr(self, "_deactivate", False)
-            reactivate = getattr(self, "_reactivate", False)
-            if deactivate:
-                prompt_stack = prompt_stack[0:-1]
-                env_stack = env_stack[0:-1]
-                stacked = bool(self.environ.get(f"CONDA_STACKED_{old_shlvl}", "").rstrip())
-                if not stacked and env_stack:
-                    prompt_stack.append(env_stack[-1])
-            elif reactivate:
-                pass
-            else:
-                stack = getattr(self, "stack", False)
-                if not stack:
-                    prompt_stack = prompt_stack[0:-1]
-                prompt_stack.append(conda_default_env)
-
-            conda_stacked_env = ",".join(prompt_stack[::-1])
-
-            return context.env_prompt.format(
-                default_env=conda_default_env,
-                stacked_env=conda_stacked_env,
-                prefix=prefix,
-                name=basename(prefix),
-            )
-        else:
+        if not context.changeps1:
             return ""
+        # Get current environment and prompt stack
+        env_stack = []
+        prompt_stack = []
+        old_shlvl = int(self.environ.get("CONDA_SHLVL", "0").rstrip())
+        for i in range(1, old_shlvl + 1):
+            if i == old_shlvl:
+                env_i = self._default_env(self.environ.get("CONDA_PREFIX", ""))
+            else:
+                env_i = self._default_env(self.environ.get(f"CONDA_PREFIX_{i}", "").rstrip())
+            stacked_i = bool(self.environ.get(f"CONDA_STACKED_{i}", "").rstrip())
+            env_stack.append(env_i)
+            if not stacked_i:
+                prompt_stack = prompt_stack[:-1]
+            prompt_stack.append(env_i)
+
+        # Modify prompt stack according to pending operation
+        deactivate = getattr(self, "_deactivate", False)
+        reactivate = getattr(self, "_reactivate", False)
+        if deactivate:
+            prompt_stack = prompt_stack[:-1]
+            env_stack = env_stack[:-1]
+            stacked = bool(self.environ.get(f"CONDA_STACKED_{old_shlvl}", "").rstrip())
+            if not stacked and env_stack:
+                prompt_stack.append(env_stack[-1])
+        elif not reactivate:
+            stack = getattr(self, "stack", False)
+            if not stack:
+                prompt_stack = prompt_stack[:-1]
+            prompt_stack.append(conda_default_env)
+
+        conda_stacked_env = ",".join(prompt_stack[::-1])
+
+        return context.env_prompt.format(
+            default_env=conda_default_env,
+            stacked_env=conda_stacked_env,
+            prefix=prefix,
+            name=basename(prefix),
+        )
 
     def _get_activate_scripts(self, prefix):
         _script_extension = self.script_extension
@@ -709,21 +700,21 @@ class _Activator:
         if exists(pkg_env_var_dir):
             for pkg_env_var_path in sorted(entry.path for entry in os.scandir(pkg_env_var_dir)):
                 with open(pkg_env_var_path) as f:
-                    env_vars.update(json.loads(f.read()))
+                    env_vars |= json.loads(f.read())
 
         # Then get env vars from environment specification
         if exists(env_vars_file):
             with open(env_vars_file) as f:
                 prefix_state = json.loads(f.read())
                 prefix_state_env_vars = prefix_state.get("env_vars", {})
-                dup_vars = [ev for ev in env_vars.keys() if ev in prefix_state_env_vars.keys()]
+                dup_vars = [ev for ev in env_vars if ev in prefix_state_env_vars.keys()]
                 for dup in dup_vars:
                     print(
                         "WARNING: duplicate env vars detected. Vars from the environment "
                         "will overwrite those from packages",
                         file=sys.stderr,
                     )
-                    print("variable %s duplicated" % dup, file=sys.stderr)
+                    print(f"variable {dup} duplicated", file=sys.stderr)
                 env_vars.update(prefix_state_env_vars)
 
         return env_vars
@@ -770,7 +761,7 @@ def native_path_to_unix(paths):  # pragma: unix no cover
     command += " --path -f -"
 
     single_path = isinstance(paths, str)
-    joined = paths if single_path else ("%s" % os.pathsep).join(paths)
+    joined = paths if single_path else f"{os.pathsep}".join(paths)
 
     if hasattr(joined, "encode"):
         joined = joined.encode("utf-8")
@@ -838,8 +829,7 @@ class PosixActivator(_Activator):
         if "POWERLINE_COMMAND" in ps1:
             # Defer to powerline (https://github.com/powerline/powerline) if it's in use.
             return
-        current_prompt_modifier = self.environ.get("CONDA_PROMPT_MODIFIER")
-        if current_prompt_modifier:
+        if current_prompt_modifier := self.environ.get("CONDA_PROMPT_MODIFIER"):
             ps1 = re.sub(re.escape(current_prompt_modifier), r"", ps1)
         # Because we're using single-quotes to set shell variables, we need to handle the
         # proper escaping of single quotes that are already part of the string.
@@ -859,13 +849,12 @@ class PosixActivator(_Activator):
                 # with shell flag -u set (error on unset).
                 # result += join(self.unset_var_tmpl % key) + '\n'
                 result += join(self.export_var_tmpl % (key, "")) + "\n"
+            elif key in ("PYTHONPATH", "CONDA_EXE"):
+                result += (
+                    join(self.export_var_tmpl % (key, self.path_conversion(value))) + "\n"
+                )
             else:
-                if key in ("PYTHONPATH", "CONDA_EXE"):
-                    result += (
-                        join(self.export_var_tmpl % (key, self.path_conversion(value))) + "\n"
-                    )
-                else:
-                    result += join(self.export_var_tmpl % (key, value)) + "\n"
+                result += join(self.export_var_tmpl % (key, value)) + "\n"
         return result
 
 
@@ -889,8 +878,7 @@ class CshActivator(_Activator):
 
     def _update_prompt(self, set_vars, conda_prompt_modifier):
         prompt = self.environ.get("prompt", "")
-        current_prompt_modifier = self.environ.get("CONDA_PROMPT_MODIFIER")
-        if current_prompt_modifier:
+        if current_prompt_modifier := self.environ.get("CONDA_PROMPT_MODIFIER"):
             prompt = re.sub(re.escape(current_prompt_modifier), r"", prompt)
         set_vars.update(
             {
@@ -929,7 +917,7 @@ class XonshActivator(_Activator):
         elif paths is None:
             return None
         else:
-            return tuple([path.replace("\\", "/") for path in paths])
+            return tuple(path.replace("\\", "/") for path in paths)
 
     def __init__(self, arguments=None):
         self.pathsep_join = ";".join if on_win else ":".join
@@ -1114,7 +1102,7 @@ class JSONFormatMixin(_Activator):
     def _finalize(self, commands, ext):
         merged = {}
         for _cmds in commands:
-            merged.update(_cmds)
+            merged |= _cmds
 
         commands = merged
         if ext is None:
@@ -1181,8 +1169,5 @@ def _build_activator_cls(shell):
     activator, formatters = shell_etc[0], shell_etc[1:]
     bases = [activator_map[activator]]
 
-    for f in formatters:
-        bases.append(formatter_map[f])
-
-    cls = type("Activator", tuple(bases), {})
-    return cls
+    bases.extend(formatter_map[f] for f in formatters)
+    return type("Activator", tuple(bases), {})

@@ -115,13 +115,10 @@ def execute(args, parser):
         rm_rf(prefix)
     cli_install.check_prefix(prefix, json=args.json)
 
-    # TODO, add capability
-    # common.ensure_override_channels_requires_channel(args)
-    # channel_urls = args.channel or ()
+    args_packages = (
+        [] if args.no_default_packages else context.create_default_packages
+    )
 
-    result = {"conda": None, "pip": None}
-
-    args_packages = context.create_default_packages if not args.no_default_packages else []
 
     if args.dry_run:
         installer_type = 'conda'
@@ -137,6 +134,12 @@ def execute(args, parser):
             print(solved_env.to_yaml(), end='')
 
     else:
+        # TODO, add capability
+        # common.ensure_override_channels_requires_channel(args)
+        # channel_urls = args.channel or ()
+
+        result = {"conda": None, "pip": None}
+
         if args_packages:
             installer_type = "conda"
             installer = get_installer(installer_type)

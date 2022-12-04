@@ -53,8 +53,9 @@ def detect(**kwargs):
 
 
 def build_message(spec_instances):
-    binstar_spec = next((s for s in spec_instances if isinstance(s, BinstarSpec)), None)
-    if binstar_spec:
+    if binstar_spec := next(
+        (s for s in spec_instances if isinstance(s, BinstarSpec)), None
+    ):
         return binstar_spec.msg
     else:
         return "\n".join([s.msg for s in spec_instances if s.msg is not None])

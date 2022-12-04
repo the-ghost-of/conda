@@ -75,8 +75,7 @@ items in the preceding sets.
 
     while True:
         try:
-            value = next(t)
-            yield value
+            yield next(t)
         except ValueError as err:
             log.debug(err.args[0])
 
@@ -106,7 +105,4 @@ def toposort(data, safe=True):
         # - https://github.com/conda/conda/pull/1614
         data['python'].discard('pip')
 
-    if safe:
-        return list(_safe_toposort(data))
-    else:
-        return list(_toposort(data))
+    return list(_safe_toposort(data)) if safe else list(_toposort(data))

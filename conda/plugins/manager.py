@@ -80,8 +80,11 @@ class CondaPluginManager(pluggy.PluginManager):
         )
         # Check for conflicts
         seen = set()
-        conflicts = [plugin for plugin in plugins if plugin.name in seen or seen.add(plugin.name)]
-        if conflicts:
+        if conflicts := [
+            plugin
+            for plugin in plugins
+            if plugin.name in seen or seen.add(plugin.name)
+        ]:
             raise PluginError(
                 dals(
                     f"""
@@ -121,7 +124,7 @@ class CondaPluginManager(pluggy.PluginManager):
 
         # Look up the solver mapping an fail loudly if it can't
         # find the requested solver.
-        backend = solvers_mapping.get(name, None)
+        backend = solvers_mapping.get(name)
         if backend is None:
             raise CondaValueError(
                 f"You have chosen a non-default solver backend ({name}) "

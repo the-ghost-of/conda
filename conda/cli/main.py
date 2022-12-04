@@ -45,9 +45,8 @@ def init_loggers(context=None):
         for logger in ('conda.stdout.verbose', 'conda.stdoutlog', 'conda.stderrlog'):
             getLogger(logger).setLevel(CRITICAL + 1)
 
-    if context:
-        if context.verbosity:
-            set_verbosity(context.verbosity)
+    if context and context.verbosity:
+        set_verbosity(context.verbosity)
 
 
 def main_subshell(*args, post_parse_hook=None, **kwargs):
@@ -88,7 +87,7 @@ def main_sourced(shell, *args, **kwargs):
         activator_cls = _build_activator_cls(shell)
     except KeyError:
         from ..exceptions import CondaError
-        raise CondaError("%s is not a supported shell." % shell)
+        raise CondaError(f"{shell} is not a supported shell.")
 
     activator = activator_cls(args)
     print(activator.execute(), end="")

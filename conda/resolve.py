@@ -106,8 +106,9 @@ class Resolve:
         trackers = defaultdict(list)
 
         for name in groups:
-            unmanageable_precs = [prec for prec in groups[name] if prec.is_unmanageable]
-            if unmanageable_precs:
+            if unmanageable_precs := [
+                prec for prec in groups[name] if prec.is_unmanageable
+            ]:
                 log.debug("restricting to unmanageable packages: %s", name)
                 groups[name] = unmanageable_precs
             tf_precs = (prec for prec in groups[name] if prec.track_features)
@@ -279,8 +280,7 @@ class Resolve:
         bad_deps = []
         feature_names = set()
         for ms in specs:
-            _feature_names = ms.get_exact_value('track_features')
-            if _feature_names:
+            if _feature_names := ms.get_exact_value('track_features'):
                 feature_names.update(_feature_names)
             else:
                 non_tf_specs.append(ms)
@@ -300,16 +300,25 @@ class Resolve:
         history_specs = {MatchSpec(_) for _ in history_specs or []}
         for chain in bad_deps:
             # sometimes chains come in as strings
-            if len(chain) > 1 and chain[-1].name == 'python' and \
-                    not any(_.name == 'python' for _ in specs_to_add) and \
-                    any(_[0] for _ in bad_deps if _[0].name == 'python'):
-                python_first_specs = [_[0] for _ in bad_deps if _[0].name == 'python']
-                if python_first_specs:
+            if (
+                len(chain) > 1
+                and chain[-1].name == 'python'
+                and all(_.name != 'python' for _ in specs_to_add)
+                and any(_[0] for _ in bad_deps if _[0].name == 'python')
+            ):
+                if python_first_specs := [
+                    _[0] for _ in bad_deps if _[0].name == 'python'
+                ]:
                     python_spec = python_first_specs[0]
                     if not (set(self.find_matches(python_spec)) &
                             set(self.find_matches(chain[-1]))):
-                        classes['python'].add((tuple([chain[0], chain[-1]]),
-                                               str(MatchSpec(python_spec, target=None))))
+                        classes['python'].add(
+                            (
+                                (chain[0], chain[-1]),
+                                str(MatchSpec(python_spec, target=None)),
+                            )
+                        )
+
             elif chain[-1].name.startswith('__'):
                 version = [_ for _ in self._system_precs if _.name == chain[-1].name]
                 virtual_package_version = version[0].version if version else "not available"
@@ -324,10 +333,9 @@ class Resolve:
 
                 if not match:
                     classes['direct'].add((tuple(chain), str(MatchSpec(chain[0], target=None))))
-            else:
-                if len(chain) > 1 or any(len(c) >= 1 and c[0] == chain[0] for c in bad_deps):
-                    classes['direct'].add((tuple(chain),
-                                           str(MatchSpec(chain[0], target=None))))
+            elif len(chain) > 1 or any(len(c) >= 1 and c[0] == chain[0] for c in bad_deps):
+                classes['direct'].add((tuple(chain),
+                                       str(MatchSpec(chain[0], target=None))))
 
         if classes['python']:
             # filter out plain single-entry python conflicts.  The python section explains these.
@@ -355,8 +363,7 @@ class Resolve:
 
     def breadth_first_search_for_dep_graph(self, root_spec, target_name, dep_graph, num_targets=1):
         """Return shorted path from root_spec to target_name"""
-        queue = []
-        queue.append([root_spec])
+        queue = [[root_spec]]
         visited = []
         target_paths = []
         while queue:
@@ -366,7 +373,7 @@ class Resolve:
                 continue
             visited.append(node)
             if node.name == target_name:
-                if len(target_paths) == 0:
+                if not target_paths:
                     target_paths.append(path)
                 if len(target_paths[-1]) == len(path):
                     last_spec = MatchSpec.union((path[-1], target_paths[-1][-1]))[0]
@@ -375,13 +382,13 @@ class Resolve:
                     target_paths.append(path)
 
                 found_all_targets = len(target_paths) == num_targets and \
-                    any(len(_) != len(path) for _ in queue)
-                if len(queue) == 0 or found_all_targets:
+                        any(len(_) != len(path) for _ in queue)
+                if not queue or found_all_targets:
                     return target_paths
             sub_graph = dep_graph
-            for p in path[0:-1]:
+            for p in path[:-1]:
                 sub_graph = sub_graph[p]
-            children = [_ for _ in sub_graph.get(node, {})]
+            children = list(sub_graph.get(node, {}))
             if children is None:
                 continue
             for adj in children:
@@ -460,12 +467,12 @@ class Resolve:
         dep_graph = {}
         dep_list = {}
         with tqdm(total=len(specs), desc="Building graph of deps",
-                  leave=False, disable=context.json) as t:
+                      leave=False, disable=context.json) as t:
             for spec in specs:
                 t.set_description(f"Examining {spec}")
                 t.update()
                 dep_graph_for_spec, all_deps_for_spec = self.build_graph_of_deps(spec)
-                dep_graph.update(dep_graph_for_spec)
+                dep_graph |= dep_graph_for_spec
                 if dep_list.get(spec.name):
                     dep_list[spec.name].append(spec)
                 else:
@@ -491,16 +498,16 @@ class Resolve:
                 conflicting_pkgs_pkgs[set_v] = [k]
 
         with tqdm(total=len(specs), desc="Determining conflicts",
-                  leave=False, disable=context.json) as t:
+                      leave=False, disable=context.json) as t:
             for roots, nodes in conflicting_pkgs_pkgs.items():
-                t.set_description("Examining conflict for {}".format(
-                    " ".join(_.name for _ in roots)))
+                t.set_description(f'Examining conflict for {" ".join(_.name for _ in roots)}')
                 t.update()
-                lroots = [_ for _ in roots]
+                lroots = list(roots)
                 current_shortest_chain = []
                 shortest_node = None
-                requested_spec_unsat = frozenset(nodes).intersection({_.name for _ in roots})
-                if requested_spec_unsat:
+                if requested_spec_unsat := frozenset(nodes).intersection(
+                    {_.name for _ in roots}
+                ):
                     chains.append([_ for _ in roots if _.name in requested_spec_unsat])
                     shortest_node = chains[-1][0]
                     for root in roots:
@@ -517,7 +524,7 @@ class Resolve:
                             lroots[0], node, dep_graph, num_occurances)
                         chains.extend(chain)
                         if len(current_shortest_chain) == 0 or \
-                                len(chain) < len(current_shortest_chain):
+                                    len(chain) < len(current_shortest_chain):
                             current_shortest_chain = chain
                             shortest_node = node
                     for root in lroots[1:]:
@@ -526,9 +533,9 @@ class Resolve:
                             root, shortest_node, dep_graph, num_occurances)
                         chains.extend(c)
 
-        bad_deps = self._classify_bad_deps(chains, specs_to_add, history_specs,
-                                           strict_channel_priority)
-        return bad_deps
+        return self._classify_bad_deps(
+            chains, specs_to_add, history_specs, strict_channel_priority
+        )
 
     def _get_strict_channel(self, package_name):
         channel_name = None
@@ -545,9 +552,7 @@ class Resolve:
     @memoizemethod
     def _broader(self, ms, specs_by_name):
         """prevent introduction of matchspecs that broaden our selection of choices"""
-        if not specs_by_name:
-            return False
-        return ms.strictness < specs_by_name[0].strictness
+        return ms.strictness < specs_by_name[0].strictness if specs_by_name else False
 
     def _get_package_pool(self, specs):
         specs = frozenset(specs)
@@ -616,7 +621,7 @@ class Resolve:
                     if (not self.match_any(_specs, prec)) or (
                             explicit_spec_package_pool.get(name) and
                             prec not in explicit_spec_package_pool[name]):
-                        filter_out[prec] = "incompatible with required spec %s" % top_level_spec
+                        filter_out[prec] = f"incompatible with required spec {top_level_spec}"
                         continue
                     unsatisfiable_dep_specs = set()
                     for ms in self.ms_depends(prec):
@@ -777,8 +782,7 @@ class Resolve:
         if res is not None:
             return res
 
-        spec_name = spec.get_exact_value('name')
-        if spec_name:
+        if spec_name := spec.get_exact_value('name'):
             candidate_precs = self.groups.get(spec_name, ())
         elif spec.get_exact_value('track_features'):
             feature_names = spec.get_exact_value('track_features')
@@ -846,7 +850,7 @@ class Resolve:
         if isinstance(val, PackageRecord):
             return val.dist_str()
         elif isinstance(val, MatchSpec):
-            return '@s@' + str(val) + ('?' if val.optional else '')
+            return f'@s@{str(val)}' + ('?' if val.optional else '')
         else:
             raise NotImplementedError()
 
@@ -889,7 +893,7 @@ class Resolve:
             sat_names = [self.to_sat_name(prec) for prec in libs]
             if spec.optional:
                 ms2 = MatchSpec(track_features=tf) if tf else MatchSpec(nm)
-                sat_names.append('!' + self.to_sat_name(ms2))
+                sat_names.append(f'!{self.to_sat_name(ms2)}')
             m = C.Any(sat_names)
         C.name_var(m, sat_name)
         return sat_name
@@ -938,7 +942,11 @@ class Resolve:
         return result
 
     def generate_update_count(self, C, specs):
-        return {'!'+ms.target: 1 for ms in specs if ms.target and C.from_name(ms.target)}
+        return {
+            f'!{ms.target}': 1
+            for ms in specs
+            if ms.target and C.from_name(ms.target)
+        }
 
     def generate_feature_metric(self, C):
         eq = {}  # a C.minimize() objective: Dict[varname, coeff]
@@ -960,7 +968,7 @@ class Resolve:
         return eq
 
     def generate_removal_count(self, C, specs):
-        return {'!'+self.push_MatchSpec(C, ms.name): 1 for ms in specs}
+        return {f'!{self.push_MatchSpec(C, ms.name)}': 1 for ms in specs}
 
     def generate_install_count(self, C, specs):
         return {self.push_MatchSpec(C, ms.name): 1 for ms in specs if ms.optional}
@@ -1198,9 +1206,7 @@ class Resolve:
 
     def install(self, specs, installed=None, update_deps=True, returnall=False):
         specs, preserve = self.install_specs(specs, installed or [], update_deps)
-        pkgs = []
-        if specs:
-            pkgs = self.solve(specs, returnall=returnall, _remove=False)
+        pkgs = self.solve(specs, returnall=returnall, _remove=False) if specs else []
         self.restore_bad(pkgs, preserve)
         return pkgs
 
@@ -1230,10 +1236,15 @@ class Resolve:
                 preserve.append(prec)
             else:
                 # TODO: fix target here
-                nspecs.append(MatchSpec(name=nm,
-                                        version='>='+ver if ver else None,
-                                        optional=True,
-                                        target=prec.dist_str()))
+                nspecs.append(
+                    MatchSpec(
+                        name=nm,
+                        version=f'>={ver}' if ver else None,
+                        optional=True,
+                        target=prec.dist_str(),
+                    )
+                )
+
         return nspecs, preserve
 
     def remove(self, specs, installed):
@@ -1311,9 +1322,7 @@ class Resolve:
             """
             psolution = clean(solution)
             nclause = tuple(C.Not(C.from_name(q)) for q in psolution)
-            if C.sat((nclause,), includeIf=False) is None:
-                return True
-            return False
+            return C.sat((nclause,), includeIf=False) is None
 
         r2 = Resolve(reduced_index, True, channels=self.channels)
         C = r2.gen_clauses()
@@ -1457,13 +1466,6 @@ class Resolve:
 
         new_index = {self.to_sat_name(prec): prec for prec in self.index.values()}
 
-        if returnall:
-            if len(psolutions) > 1:
-                raise RuntimeError()
-            # TODO: clean up this mess
-            # return [sorted(Dist(stripfeat(dname)) for dname in psol) for psol in psolutions]
-            # return [sorted((new_index[sat_name] for sat_name in psol), key=lambda x: x.name)
-            #         for psol in psolutions]
-
-            # return sorted(Dist(stripfeat(dname)) for dname in psolutions[0])
+        if returnall and len(psolutions) > 1:
+            raise RuntimeError()
         return sorted((new_index[sat_name] for sat_name in psolutions[0]), key=lambda x: x.name)

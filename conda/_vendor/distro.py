@@ -644,10 +644,7 @@ class LinuxDistribution(object):
             return normalize(distro_id, NORMALIZED_LSB_ID)
 
         distro_id = self.distro_release_attr('id')
-        if distro_id:
-            return normalize(distro_id, NORMALIZED_DISTRO_ID)
-
-        return ''
+        return normalize(distro_id, NORMALIZED_DISTRO_ID) if distro_id else ''
 
     def name(self, pretty=False):
         """
@@ -656,16 +653,15 @@ class LinuxDistribution(object):
         For details, see :func:`distro.name`.
         """
         name = self.os_release_attr('name') \
-            or self.lsb_release_attr('distributor_id') \
-            or self.distro_release_attr('name')
+                or self.lsb_release_attr('distributor_id') \
+                or self.distro_release_attr('name')
         if pretty:
             name = self.os_release_attr('pretty_name') \
-                or self.lsb_release_attr('description')
+                    or self.lsb_release_attr('description')
             if not name:
                 name = self.distro_release_attr('name')
-                version = self.version(pretty=True)
-                if version:
-                    name = name + ' ' + version
+                if version := self.version(pretty=True):
+                    name = f'{name} {version}'
         return name or ''
 
     def version(self, pretty=False, best=False):
@@ -708,11 +704,9 @@ class LinuxDistribution(object):
 
         For details, see :func:`distro.version_parts`.
         """
-        version_str = self.version(best=best)
-        if version_str:
+        if version_str := self.version(best=best):
             version_regex = re.compile(r'(\d+)\.?(\d+)?\.?(\d+)?')
-            matches = version_regex.match(version_str)
-            if matches:
+            if matches := version_regex.match(version_str):
                 major, minor, build_number = matches.groups()
                 return major, minor or '', build_number or ''
         return '', '', ''
@@ -889,11 +883,7 @@ class LinuxDistribution(object):
                     v = v.decode('utf-8')
                 props[k.lower()] = v
                 if k == 'VERSION':
-                    # this handles cases in which the codename is in
-                    # the `(CODENAME)` (rhel, centos, fedora) format
-                    # or in the `, CODENAME` format (Ubuntu).
-                    codename = re.search(r'(\(\D+\))|,(\s+)?\D+', v)
-                    if codename:
+                    if codename := re.search(r'(\(\D+\))|,(\s+)?\D+', v):
                         codename = codename.group()
                         codename = codename.strip('()')
                         codename = codename.strip(',')
@@ -902,9 +892,6 @@ class LinuxDistribution(object):
                         props['codename'] = codename
                     else:
                         props['codename'] = ''
-            else:
-                # Ignore any tokens that are not variable assignments
-                pass
         return props
 
     def _get_lsb_release_info(self):
@@ -964,7 +951,7 @@ class LinuxDistribution(object):
                 # Ignore lines without colon.
                 continue
             k, v = kv
-            props.update({k.replace(' ', '_').lower(): v.strip()})
+            props[k.replace(' ', '_').lower()] = v.strip()
         return props
 
     def _get_distro_release_info(self):
@@ -980,12 +967,7 @@ class LinuxDistribution(object):
             distro_info = self._parse_distro_release_file(
                 self.distro_release_file)
             basename = os.path.basename(self.distro_release_file)
-            # The file name pattern for user-specified distro release files
-            # is somewhat more tolerant (compared to when searching for the
-            # file), because we want to use what was specified as best as
-            # possible.
-            match = _DISTRO_RELEASE_BASENAME_PATTERN.match(basename)
-            if match:
+            if match := _DISTRO_RELEASE_BASENAME_PATTERN.match(basename):
                 distro_info['id'] = match.group(1)
             return distro_info
         else:
@@ -1015,8 +997,7 @@ class LinuxDistribution(object):
             for basename in basenames:
                 if basename in _DISTRO_RELEASE_IGNORE_BASENAMES:
                     continue
-                match = _DISTRO_RELEASE_BASENAME_PATTERN.match(basename)
-                if match:
+                if match := _DISTRO_RELEASE_BASENAME_PATTERN.match(basename):
                     filepath = os.path.join(_UNIXCONFDIR, basename)
                     distro_info = self._parse_distro_release_file(filepath)
                     if 'name' in distro_info:
